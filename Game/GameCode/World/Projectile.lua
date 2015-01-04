@@ -8,6 +8,7 @@ local Projectile = Class()
 function Projectile:Constructor(world, owner, initialDirection)
 	self.initialDirection = initialDirection
 	self.owner = owner
+	self.faction = owner.faction
 	
 	local lifeTime = 2
 	local lifeTimer = MOAITimer.new()
@@ -31,13 +32,13 @@ function Projectile:Initialise(world)
 	local physicsWorld = world.physicsWorld
 
 	-- dtreadgold: Set up prop and physics
-	local playerQuad = MOAIGfxQuad2D.new ()
-	playerQuad:setTexture ( GRAPHICS_DIR .. "p1.png" )
+	local quad = MOAIGfxQuad2D.new ()
+	quad:setTexture ( GRAPHICS_DIR .. "p1.png" )
 	local size = { 10, 14 }
-	playerQuad:setRect ( -size[1] / 2, -size[2] / 2, size[1] / 2, size[2] / 2 )
+	quad:setRect ( -size[1] / 2, -size[2] / 2, size[1] / 2, size[2] / 2 )
 
 	self.prop = MOAIProp2D.new()
-	self.prop:setDeck ( playerQuad )
+	self.prop:setDeck ( quad )
 	layer:insertProp ( self.prop )
 	
 	local worldBody = physicsWorld:addBody ( MOAIBox2DBody.DYNAMIC )
@@ -60,7 +61,12 @@ function Projectile:Initialise(world)
 		end
 	end
 	fixture:setCollisionHandler( onCollide, MOAIBox2DArbiter.BEGIN + MOAIBox2DArbiter.END )
-	fixture:setFilter( CollisionFilters.Category.EnemyProjectiles, CollisionFilters.Mask.EnemyProjectiles )
+	
+	if self.faction == "Good" then
+		fixture:setFilter( CollisionFilters.Category.FriendlyProjectiles, CollisionFilters.Mask.FriendlyProjectiles )
+	else
+		fixture:setFilter( CollisionFilters.Category.EnemyProjectiles, CollisionFilters.Mask.EnemyProjectiles )
+	end
 	
 	self.prop:setAttrLink( MOAIProp2D.INHERIT_LOC, worldBody, MOAIProp2D.TRANSFORM_TRAIT )
 	worldBody.owner = self

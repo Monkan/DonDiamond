@@ -9,9 +9,8 @@ local Enemy = Class()
 --------------------------------------------------------------------------------
 function Enemy:Constructor(world)
 	self.state = "Attacking"
-	self.health = 100
-	
-	self.health = 50
+	self.health = 20
+	self.faction = "Bad"
 	
 	self.world = world
 	self:Initialise(world)
@@ -25,7 +24,7 @@ function Enemy:Constructor(world)
 		end)
 	fireTimer:start()
 	
-	local rotateAmount = 20
+	local rotateAmount = 10
 	self.spinDirection = math.random(-1, 1)
 	if self.spinDirection <= 0 then
 		self.spinDirection = -1
@@ -39,7 +38,7 @@ function Enemy:Constructor(world)
 	end
 
 	self.spin = function(rotation)
-		local action = self.prop:moveRot( rotation, 0.1 )
+		local action = self.prop:moveRot( rotation, 0.5 )
 		action:setListener( MOAIAction.EVENT_STOP, self.onSpinStop )
 	end
 

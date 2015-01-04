@@ -16,7 +16,7 @@ local TileDimensions = { 40, 40 }
 --------------------------------------------------------------------------------
 function Game:Constructor(mainLayer, physicsWorld)
 	
-	MOAIGfxDevice.getFrameBuffer():setClearColor(1.0, 1.0, 1.0, 1.0)
+	--MOAIGfxDevice.getFrameBuffer():setClearColor(1.0, 1.0, 1.0, 1.0)
 
 	self.layer = mainLayer
 	self.physicsWorld = physicsWorld
@@ -39,11 +39,6 @@ function Game:Constructor(mainLayer, physicsWorld)
 
 --]]
 	
-	
-	-- dtreadgold: Set up the first room
-	self.currentRoom = Room()
-	table.insert(self.rooms, self.currentRoom)
-
 	self.world = World(mainLayer, physicsWorld)
 
 	self.world.enemies = self.enemies
@@ -56,10 +51,8 @@ function Game:Constructor(mainLayer, physicsWorld)
 	self.player = Player(self.world)
 	self.world.player = self.player
 	
-	local numEnemies = 20
-	for enemyCount = 1, numEnemies do
-		self:CreateEnemy()
-	end
+	-- dtreadgold: Set up the first room
+	self:MoveToRoom()
 
 end
 
@@ -82,6 +75,9 @@ end
 --------------------------------------------------------------------------------
 function Game:Update()
 	self.player:Update()
+	if self.player.dead then
+		self:Restart()
+	end
 	
 	-- dtreadgold: Update all enemies
 	for enemyIndex, enemy in ipairs(self.enemies) do
@@ -102,6 +98,70 @@ function Game:Update()
 			table.remove(self.projectiles, projectileIndex)
 		end
 	end
+	
+	-- dtreadgold: Check if the room has been cleared of enemies
+	if #self.enemies == 0 then
+		self:RoomFinished()
+	end
+end
+
+--------------------------------------------------------------------------------
+--
+--------------------------------------------------------------------------------
+function Game:RoomFinished()
+	-- dtreadgold: Create a key pickup to open a door
+	for doorIndex, door in ipairs(self.doors) do
+		door:setActive(false)
+	end
+	
+	self:MoveToRoom()
+end
+
+--------------------------------------------------------------------------------
+--
+--------------------------------------------------------------------------------
+function Game:MoveToRoom()
+	self.currentRoom = Room()
+	table.insert(self.rooms, self.currentRoom)
+
+	self:PopulateRoom()
+end
+
+--------------------------------------------------------------------------------
+--
+--------------------------------------------------------------------------------
+function Game:PopulateRoom()
+	local numEnemies = #self.rooms
+	for enemyCount = 1, numEnemies do
+		self:CreateEnemy()
+	end
+end
+
+--------------------------------------------------------------------------------
+--
+--------------------------------------------------------------------------------
+function Game:Restart()
+	self.player.dead = false
+	self.player.health = self.player.initialHealth
+	self.player.body:setTransform(0, 0, 0)
+	
+	self.currentRoom = nil
+	self.rooms = {}
+	
+	for enemyIndex, enemy in ipairs(self.enemies) do
+		enemy.body:destroy()
+		self.layer:removeProp(enemy.prop)
+	end
+	self.enemies = {}
+	
+	for projectileIndex, projectile in ipairs(self.projectiles) do
+		projectile.body:destroy()
+		self.layer:removeProp(projectile.prop)
+	end
+	self.projectiles = {}
+	
+	-- dtreadgold: Start on the 1st room again
+	self:MoveToRoom()
 end
 
 --------------------------------------------------------------------------------
@@ -115,8 +175,8 @@ function Game:CreateEnemy()
 	
 	local position =
 	{
-		math.random(-RoomDimensionsWorld[1] / 2, RoomDimensionsWorld[1] / 2),
-		math.random(-RoomDimensionsWorld[2] / 2, RoomDimensionsWorld[2] / 2),
+		math.random( (-RoomDimensionsWorld[1] / 2) + TileDimensions[1], (RoomDimensionsWorld[1] / 2) - TileDimensions[1] ),
+		math.random( (-RoomDimensionsWorld[2] / 2) + TileDimensions[2], (RoomDimensionsWorld[2] / 2) - TileDimensions[2] ),
 	}
 	enemy.body:setTransform(position[1], position[2], 0)
 end
@@ -172,6 +232,8 @@ function Game:CreateRoomGrid()
 	roomGridProp:forceUpdate ()
 	layer:insertProp ( roomGridProp )
 	
+	self.roomGrid = roomGridProp
+	
 	-- dtreadgold: Create wall physics
 	local wallPositions =
 	{
@@ -224,6 +286,7 @@ function Game:CreateRoomGrid()
 
 
 	-- dtreadgold: Create door physics
+	self.doors = {}
 	for wallIndex, wallPosition in ipairs(wallPositions) do
 		local doorBody = self.physicsWorld:addBody( MOAIBox2DBody.STATIC )
 		local doorDimensions = {}
@@ -236,9 +299,10 @@ function Game:CreateRoomGrid()
 		local fixture = doorBody:addRect( -doorDimensions[1] / 2, -doorDimensions[2] / 2, doorDimensions[1] / 2, doorDimensions[2] / 2 )
 		fixture:setFilter( CollisionFilters.Category.Environment, CollisionFilters.Mask.Environment )
 		doorBody:setTransform(wallPosition[1], wallPosition[2], 0)
+		
+		table.insert(self.doors, doorBody)
 	end
 end
-
 
 
 return Game

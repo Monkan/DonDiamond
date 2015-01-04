@@ -1,6 +1,7 @@
 local Controller 		= require("World/Controller")
 local TexturePacker 	= require("Util/TexturePacker")
 local CollisionFilters 	= require("World/CollisionFilters")
+local Projectile 		= require("World/Projectile")
 
 local Player = Class()
 
@@ -9,13 +10,29 @@ local Player = Class()
 --------------------------------------------------------------------------------
 function Player:Constructor(world)
 	self.controller = Controller()
-	self.health = 100
+	self.initialHealth = 100
+	self.health = self.initialHealth
 	self.points = 0
+	self.faction = "Good"
+	self.world = world
 	
 	self:Initialise(world)
 	
-	--[[
-	local rotateAmount = 20
+	self.canFire = true
+	local fireRate = 0.2
+	local fireTimer = MOAITimer.new()
+	fireTimer:setSpan(fireRate)
+	fireTimer:setMode(MOAITimer.LOOP)
+	fireTimer:setListener(MOAITimer.EVENT_TIMER_LOOP,
+		function()
+			self.canFire = true
+		end)
+	fireTimer:start()
+	
+	self.fireTimer = fireTimer
+	
+	-- dtreadgold: Jiggle the prop
+	local rotateAmount = 5
 	self.spinDirection = math.random(-1, 1)
 	if self.spinDirection <= 0 then
 		self.spinDirection = -1
@@ -29,12 +46,11 @@ function Player:Constructor(world)
 	end
 
 	self.spin = function(rotation)
-		local action = self.prop:moveRot( rotation, 0.1 )
+		local action = self.prop:moveRot( rotation, 0.5 )
 		action:setListener( MOAIAction.EVENT_STOP, self.onSpinStop )
 	end
 
 	self.spin(self.spinDirection * rotateAmount)
-	--]]
 end
 
 --------------------------------------------------------------------------------
@@ -110,14 +126,14 @@ function Player:Initialise(world)
 	-- dtreadgold: Add the prop for the crown
 	local crownQuad = MOAIGfxQuad2D.new ()
 	crownQuad:setTexture ( GRAPHICS_DIR .. "crown.png" )
-	local crownSize = { 70, 64 }
+	local crownSize = { 35, 32 }
 	crownQuad:setRect ( -crownSize[1] / 2, -crownSize[2] / 2, crownSize[1] / 2, crownSize[2] / 2 )
 
 	self.crownProp = MOAIProp2D.new()
 	self.crownProp:setDeck ( crownQuad )
 	self.crownProp.deck = crownQuad
 	layer:insertProp ( self.crownProp )
-	self.crownProp:setLoc(0, 60)
+	self.crownProp:setLoc(0, 50)
 	
 	self.crownProp:setAttrLink(MOAITransform.INHERIT_TRANSFORM, self.prop, MOAITransform.TRANSFORM_TRAIT)
 
@@ -128,8 +144,6 @@ end
 --------------------------------------------------------------------------------
 function Player:Update()
 
-	self.controller:Update()
-	
 	--local playerLoc = { self.player:getLoc() }
 	--self.player:setLoc(playerLoc[1] + 1, playerLoc[2])
 	
@@ -146,18 +160,8 @@ function Player:Update()
 	end
 	
 	local impuse = { 0, 0 }
-	local keyboard = MOAIInputMgr.device.keyboard
-	if self.controller.inputs['a'] then
-		impuse[1] = -moveSpeed
-	elseif self.controller.inputs['d'] then
-		impuse[1] = moveSpeed
-	end
-	
-	if self.controller.inputs['s'] then
-		impuse[2] = -moveSpeed
-	elseif self.controller.inputs['w'] then
-		impuse[2] = moveSpeed
-	end
+	impuse[1] = moveSpeed * self.controller.inputs["moveX"]
+	impuse[2] = moveSpeed * self.controller.inputs["moveY"]
 	
 	self.body:applyLinearImpulse(impuse[1], impuse[2])
 	
@@ -167,6 +171,29 @@ function Player:Update()
 		self.body:setTransform( position[1], position[2], math.deg(math.atan2(velocity[2], velocity[1])) + 90 )
 	end
 	--]]
+	
+	-- dtreadgold: Check if we should fire
+	if self.controller.inputs['fire'] and self.canFire then
+		local mouseX = self.controller.inputs["targetX"]
+		local mouseY = self.controller.inputs["targetY"]
+		local mousePosition = { self.world.layer:wndToWorld( mouseX, mouseY ) }
+		local fireDirection = math.subVec( mousePosition, { self.body:getPosition() } )
+		fireDirection = math.normalise(fireDirection)
+		self:Fire(fireDirection)
+	end
+end
+
+--------------------------------------------------------------------------------
+--
+--------------------------------------------------------------------------------
+function Player:Fire(fireDirection)	
+	local projectile = Projectile(self.world, self, fireDirection)
+	table.insert(self.world.projectiles, projectile)
+	self.canFire = false
+	
+	-- dtreadgold: Stop and start the timer again to make sure we can't fire too soon
+	self.fireTimer:stop()
+	self.fireTimer:start()
 end
 
 
