@@ -160,6 +160,10 @@ function Game:Restart()
 	end
 	self.projectiles = {}
 	
+	self.world.enemies = self.enemies
+	self.world.projectiles = self.projectiles
+	self.world.rooms = self.rooms
+	
 	-- dtreadgold: Start on the 1st room again
 	self:MoveToRoom()
 end
