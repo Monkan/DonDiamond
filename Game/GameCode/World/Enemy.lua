@@ -5,18 +5,29 @@ local CollisionFilters 	= require("World/CollisionFilters")
 local Enemy = Class()
 
 --------------------------------------------------------------------------------
+-- Types
+--------------------------------------------------------------------------------
+Enemy.Types = 
+{	
+	Red 	= require("World/Enemies/EnemyRed"),
+	Green 	= require("World/Enemies/EnemyGreen"),
+	Blue 	= require("World/Enemies/EnemyBlue"),
+}
+
+--------------------------------------------------------------------------------
 -- Constructor
 --------------------------------------------------------------------------------
-function Enemy:Constructor(world)
+function Enemy:Constructor(world, enemyInfo)
 	self.state = "Attacking"
-	self.health = 20
+	self.health = enemyInfo.health
 	self.faction = "Bad"
+	self.enemyInfo = enemyInfo
 	
 	self.world = world
 	self:Initialise(world)
 	
 	local fireTimer = MOAITimer.new()
-	fireTimer:setSpan(2)
+	fireTimer:setSpan(enemyInfo.fireRate)
 	fireTimer:setMode(MOAITimer.LOOP)
 	fireTimer:setListener(MOAITimer.EVENT_TIMER_LOOP,
 		function()
@@ -72,15 +83,25 @@ function Enemy:Initialise(world)
 	local physicsWorld = world.physicsWorld
 	
 	-- dtreadgold: Set up prop and physics
-	--local deck = 
-	local playerQuad = MOAIGfxQuad2D.new ()
-	playerQuad:setTexture ( GRAPHICS_DIR .. "enemy1.png" )
+	local deck = MOAIGfxQuad2D.new()
+	deck:setTexture ( GRAPHICS_DIR .. self.enemyInfo.texture )
 	local size = { 48, 34 }
-	playerQuad:setRect ( -size[1] / 2, -size[2] / 2, size[1] / 2, size[2] / 2 )
+	deck:setRect( -size[1] / 2, -size[2] / 2, size[1] / 2, size[2] / 2 )
 
 	self.prop = MOAIProp2D.new()
-	self.prop:setDeck ( playerQuad )
-	layer:insertProp ( self.prop )
+	self.prop:setDeck( deck )
+	layer:insertProp( self.prop )
+	
+	-- dtreadgold: Add the prop for the eye
+	local eyeDeck, names = TexturePacker:Load(GRAPHICS_DIR .. "enemyEyes.lua", GRAPHICS_DIR .. "enemyEyes.png")
+	eyeDeck.names = names
+
+	self.eyeProp = MOAIProp2D.new()
+	self.eyeProp:setDeck( eyeDeck )
+	self.eyeProp.deck = eyeDeck
+	--layer:insertProp ( self.eyeProp )
+	self.eyeProp:setLoc(0, 0)	
+	self.eyeProp:setAttrLink(MOAITransform.INHERIT_TRANSFORM, self.prop, MOAITransform.TRANSFORM_TRAIT)
 	
 	local worldBody = physicsWorld:addBody ( MOAIBox2DBody.DYNAMIC )
 	local fixture = worldBody:addCircle( 0, 0, size[1] / 2 )
@@ -127,7 +148,7 @@ function Enemy:Update()
 
 	local moveSpeed = 20
 	local minDistanceFromPlayer = 200
-	local maxMoveSpeed = 100
+	local maxMoveSpeed = self.enemyInfo.maxMoveSpeed
 	
 	-- dtreadgold: Clamp the movement speed to max move speed
 	local velocity = { self.body:getLinearVelocity() }
@@ -155,15 +176,15 @@ function Enemy:Update()
 
 	elseif self.state == "Still" then
 		
-		if distanceToPlayer > minDistanceFromPlayer * 2 then		
+		if distanceToPlayer > minDistanceFromPlayer * 1.5 then		
 			self.state = "Attacking"
-		elseif distanceToPlayer < minDistanceFromPlayer / 2 then
+		elseif distanceToPlayer < minDistanceFromPlayer / 1.5 then
 			self.state = "Retreating"
 		end
 
 	elseif self.state == "Retreating" then
 		
-		if distanceToPlayer > minDistanceFromPlayer * 2 then		
+		if distanceToPlayer > minDistanceFromPlayer * 1.5 then		
 			self.state = "Attacking"
 		else
 			impuse = math.mulVecScl(directionToPlayer, -moveSpeed)
@@ -192,8 +213,39 @@ end
 --------------------------------------------------------------------------------
 function Enemy:Fire(directionToPlayer)
 	
+	if self.enemyInfo.fireType == "Radius" then
+		self:FireRadius()
+	elseif self.enemyInfo.fireType == "AtPlayer" then
+		self:FireAtPlayer(directionToPlayer)
+	end
+	
+end
+
+--------------------------------------------------------------------------------
+--
+--------------------------------------------------------------------------------
+function Enemy:FireAtPlayer(directionToPlayer)
+	
 	local projectile = Projectile(self.world, self, directionToPlayer)
 	table.insert(self.world.projectiles, projectile)
+end
+
+--------------------------------------------------------------------------------
+--
+--------------------------------------------------------------------------------
+function Enemy:FireRadius()
+	
+	local numProjectiles = self.enemyInfo.numberOfProjectiles
+	local angleStep = 360 / numProjectiles
+	local direction = { 1, 0 }
+
+	for projectileIndex = 1, numProjectiles do
+		local projectile = Projectile(self.world, self, direction)
+		table.insert(self.world.projectiles, projectile)
+		
+		direction = math.rotateVecAngle(direction, angleStep)
+	end
+	
 end
 
 

@@ -204,9 +204,9 @@ end
  -- Rotate a vector by and angle in degrees
 --------------------------------------------------------------------------------
 function math.rotateVecAngle( v, angleDeg )
-	angleDeg = math.rad( angleDeg )
-	local cos = math.cos(angleDeg)
-	local sin = math.sin(angleDeg)
+	angleRad = math.rad( angleDeg )
+	local cos = math.cos(angleRad)
+	local sin = math.sin(angleRad)
 		
 	local rotatedVector = 
 	{

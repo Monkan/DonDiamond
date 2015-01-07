@@ -19,7 +19,7 @@ function Player:Constructor(world)
 	self:Initialise(world)
 	
 	self.canFire = true
-	local fireRate = 0.2
+	local fireRate = 0.5
 	local fireTimer = MOAITimer.new()
 	fireTimer:setSpan(fireRate)
 	fireTimer:setMode(MOAITimer.LOOP)
@@ -47,6 +47,7 @@ function Player:Constructor(world)
 
 	self.spin = function(rotation)
 		local action = self.prop:moveRot( rotation, 0.5 )
+		self.crownProp:moveRot( -rotation, 0.5 )
 		action:setListener( MOAIAction.EVENT_STOP, self.onSpinStop )
 	end
 
@@ -90,6 +91,8 @@ function Player:Initialise(world)
 					if self.health < 0 then
 						self.dead = true
 					end
+					
+					self:SetMood("Sad")
 				end
 			end
 		end
@@ -103,25 +106,17 @@ function Player:Initialise(world)
 	self.body:setLinearDamping(3)
 	
 	-- dtreadgold: Add the prop for the mouth
-	local mouthDeck = TexturePacker:Load(GRAPHICS_DIR .. "playerMouths.lua", GRAPHICS_DIR .. "playerMouths.png")
+	local mouthDeck, names = TexturePacker:Load(GRAPHICS_DIR .. "playerMouths.lua", GRAPHICS_DIR .. "playerMouths.png")
+	mouthDeck.names = names
 
 	self.mouthProp = MOAIProp2D.new()
 	self.mouthProp:setDeck ( mouthDeck )
 	self.mouthProp.deck = mouthDeck
 	layer:insertProp ( self.mouthProp )
-	self.mouthProp:setLoc(0, 0)
-	
+	self.mouthProp:setLoc(0, 0)	
 	self.mouthProp:setAttrLink(MOAITransform.INHERIT_TRANSFORM, self.prop, MOAITransform.TRANSFORM_TRAIT)
 	
-	-- dtreadgold: Mouth changing timer
-	local timer = MOAITimer.new()
-	timer:setSpan(2)
-	timer:setMode(MOAITimer.LOOP)
-	timer:setListener(MOAITimer.EVENT_TIMER_LOOP,
-		function()
-			self.mouthProp:setIndex(math.random(1, 6))
-		end)
-	timer:start()
+	self:SetMood("Happy")
 	
 	-- dtreadgold: Add the prop for the crown
 	local crownQuad = MOAIGfxQuad2D.new ()
@@ -138,6 +133,44 @@ function Player:Initialise(world)
 	self.crownProp:setAttrLink(MOAITransform.INHERIT_TRANSFORM, self.prop, MOAITransform.TRANSFORM_TRAIT)
 
 end
+
+--------------------------------------------------------------------------------
+--
+--------------------------------------------------------------------------------
+function Player:SetMood(mood)
+	if mood == "Sad" then
+		if self.moodTimer then
+			self.moodTimer:stop()
+			self.moodTimer = nil
+		end
+
+		local sadImages = 
+		{
+			--"sad1.png",
+			"sad2.png"
+		}
+		local mouthImage = sadImages[math.random(1, #sadImages)]
+		self.mouthProp:setIndex(self.mouthProp.deck.names[mouthImage])
+		
+		-- dtreadgold: Mouth changing timer
+		self.moodTimer = MOAITimer.new()
+		self.moodTimer:setSpan(0.5)
+		self.moodTimer:setListener(MOAITimer.EVENT_TIMER_END_SPAN,
+			function()
+				self:SetMood("Happy")
+			end)
+		self.moodTimer:start()
+	elseif mood == "Happy" then
+		local sadImages = 
+		{
+			"smile2.png",
+			"smile3.png"
+		}
+		local mouthImage = sadImages[math.random(1, #sadImages)]
+		self.mouthProp:setIndex(self.mouthProp.deck.names[mouthImage])
+	end
+end
+
 
 --------------------------------------------------------------------------------
 --
@@ -195,6 +228,7 @@ function Player:Fire(fireDirection)
 	self.fireTimer:stop()
 	self.fireTimer:start()
 end
+
 
 
 return Player

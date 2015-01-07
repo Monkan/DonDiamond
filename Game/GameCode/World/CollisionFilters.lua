@@ -14,7 +14,7 @@ local Mask =
 	Player 					= Category.Enemy + Category.EnemyProjectiles + Category.Environment,
 	FriendlyProjectiles 	= Category.Enemy + Category.EnemyProjectiles + Category.Environment,
 	Enemy 					= Category.Player + Category.Enemy + Category.FriendlyProjectiles + Category.EnemyProjectiles + Category.Environment,	
-	EnemyProjectiles 		= Category.Player + Category.Enemy + Category.FriendlyProjectiles + Category.EnemyProjectiles + Category.Environment,
+	EnemyProjectiles 		= Category.Player + Category.Enemy + Category.FriendlyProjectiles + Category.Environment,
 	Environment				= Category.Player + Category.Enemy + Category.FriendlyProjectiles + Category.EnemyProjectiles + Category.Environment,
 }
 
