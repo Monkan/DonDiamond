@@ -5,7 +5,7 @@ require "Util/Math"
 local Game = require "World/Game"
 
 
-local CONTENT_DIR = "../Content/"
+CONTENT_DIR = "../Content/"
 GRAPHICS_DIR = CONTENT_DIR .. "Graphics/"
 
 local resolution = { 1280, 720 }

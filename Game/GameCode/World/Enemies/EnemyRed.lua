@@ -2,9 +2,11 @@ local EnemyRed =
 {
 	fireType 			= "Radius",
 	numberOfProjectiles = 8,
-	fireRate			= 3,
+	fireRate			= 2.5,
+	randomOffset		= 0,
+	projectileDamage	= 8,
 	
-	health 				= 40,
+	health 				= 80,
 	maxMoveSpeed		= 50,
 	points				= 5,
 	

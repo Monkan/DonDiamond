@@ -1,19 +1,26 @@
 local Utils = require("Util/Utils")
+local CollisionFilters 	= require("World/CollisionFilters")
 
 local Controller = Class()
 
 --------------------------------------------------------------------------------
 -- Constructor
 --------------------------------------------------------------------------------
-function Controller:Constructor()
+function Controller:Constructor(owner)
+	self.owner = owner
 	self.inputs = 
 	{
 		moveX 	= 0,
 		moveY 	= 0,
 		fire	= false,
 		targetX	= 0,
-		targetY = 0
+		targetY = 0,
+		moveToX	= nil,
+		moveToY	= nil
 	}
+	
+	self.prevMoveX = 0
+	self.prevMoveY = 0
 	
 	if Utils:IsMobile() then
 		self:SetupMobileInputs()
@@ -67,8 +74,10 @@ function Controller:SetupPCInputs()
 	MOAIInputMgr.device.mouseLeft:setCallback( onMouseLeftEvent )
 	
 	function onPointerEvent(x, y)
-		self.inputs["targetX"] = x
-		self.inputs["targetY"] = y
+		local layer = self.owner.world.layer
+		local targetPosition = { layer:wndToWorld(x, y) }
+		self.inputs["targetX"] = targetPosition[1]
+		self.inputs["targetY"] = targetPosition[2]
 	end
 	MOAIInputMgr.device.pointer:setCallback(onPointerEvent)
 end
@@ -77,26 +86,41 @@ end
 -- 
 --------------------------------------------------------------------------------
 function Controller:SetupMobileInputs()
-	-- dtreadgold: Get the movement inputs from the accelerometer
-	function onLevelEvent( x, y, z )
-		self.inputs["moveX"] = x
-		self.inputs["moveY"] = y
-		print ( "Motion: x=" .. x .. ", y=" .. y .. ", z=" .. z )
-	end
-	MOAIInputMgr.device.level:setCallback( onLevelEvent )
-
 	-- dtreadgold: Get the fire and target inputs from the touch sensor
-	function onTapEvent( eventType, idx, x, y, tapCount  )		
+	function onTapEvent( eventType, idx, x, y, tapCount  )
+		local layer = self.owner.world.layer
+		local worldPosition = { layer:wndToWorld(x, y) }
+
 		if eventType == MOAITouchSensor.TOUCH_DOWN then
 			self.inputs["fire"] = true
 		elseif eventType == MOAITouchSensor.TOUCH_UP then
-			self.inputs["fire"] = false			
+			self.inputs["fire"] = false
 		end
 		
-		self.inputs["targetX"] = x
-		self.inputs["targetY"] = y
+		self.inputs["targetX"] = worldPosition[1]
+		self.inputs["targetY"] = worldPosition[2]
+		
+		self.inputs["moveToX"] = worldPosition[1]
+		self.inputs["moveToY"] = worldPosition[2]
 	end
 	MOAIInputMgr.device.touch:setCallback( onTapEvent )
+end
+
+
+--------------------------------------------------------------------------------
+--
+--------------------------------------------------------------------------------
+function Controller:Reset()
+	self.inputs = 
+	{
+		moveX 	= 0,
+		moveY 	= 0,
+		fire	= false,
+		targetX	= 0,
+		targetY = 0,
+		moveToX	= nil,
+		moveToY	= nil
+	}
 end
 
 return Controller

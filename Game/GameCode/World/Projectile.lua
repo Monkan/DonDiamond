@@ -5,7 +5,7 @@ local Projectile = Class()
 --------------------------------------------------------------------------------
 -- Constructor
 --------------------------------------------------------------------------------
-function Projectile:Constructor(world, owner, initialDirection)
+function Projectile:Constructor(world, owner, initialDirection, damage)
 	self.initialDirection = initialDirection
 	self.owner = owner
 	self.faction = owner.faction
@@ -19,7 +19,7 @@ function Projectile:Constructor(world, owner, initialDirection)
 		end)
 	lifeTimer:start()
 	
-	self.damage = 5
+	self.damage = damage
 	
 	self:Initialise(world)
 end

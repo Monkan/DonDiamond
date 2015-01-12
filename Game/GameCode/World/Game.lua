@@ -26,19 +26,16 @@ function Game:Constructor(mainLayer, physicsWorld)
 	self.projectiles = {}
 	self.rooms = {}
 
---[[
 	-- dtreadgold: Set up camera
-	self.camera = MOAICamera.new()
-	layer:setCamera( self.camera )
+	self.camera = MOAICamera2D.new()
+	mainLayer:setCamera( self.camera )
 
 	local cameraFitter = MOAICameraFitter2D.new()	
-	cameraFitter:setViewport( layer.viewport )
+	cameraFitter:setViewport( mainLayer.viewport )
 	cameraFitter:setCamera( self.camera )
 	cameraFitter:setBounds( -1000, -1000, 1000, 1000 )
 	cameraFitter:setMin( 512 )
 	cameraFitter:start()
-
---]]
 	
 	self.world = World(mainLayer, physicsWorld)
 
@@ -226,9 +223,7 @@ end
 --
 --------------------------------------------------------------------------------
 function Game:Restart()
-	self.player.dead = false
-	self.player.health = self.player.initialHealth
-	self.player.body:setTransform(0, 0, 0)
+	self.player:Reset()
 	
 	self.currentRoom = nil
 	self.rooms = {}

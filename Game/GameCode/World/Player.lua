@@ -2,6 +2,7 @@ local Controller 		= require("World/Controller")
 local TexturePacker 	= require("Util/TexturePacker")
 local CollisionFilters 	= require("World/CollisionFilters")
 local Projectile 		= require("World/Projectile")
+local Particles 		= require("World/Particles")
 
 local Player = Class()
 
@@ -9,17 +10,19 @@ local Player = Class()
 -- Constructor
 --------------------------------------------------------------------------------
 function Player:Constructor(world)
-	self.controller = Controller()
+	self.world = world
+
 	self.initialHealth = 100
 	self.health = self.initialHealth
 	self.points = 0
-	self.faction = "Good"
-	self.world = world
+	self.faction = "Good"	
+	self.projectileDamage = 5
 	
+	self.controller = Controller(self)
 	self:Initialise(world)
 	
 	self.canFire = true
-	local fireRate = 0.5
+	local fireRate = 0.3
 	local fireTimer = MOAITimer.new()
 	fireTimer:setSpan(fireRate)
 	fireTimer:setMode(MOAITimer.LOOP)
@@ -52,6 +55,9 @@ function Player:Constructor(world)
 	end
 
 	self.spin(self.spinDirection * rotateAmount)
+	
+	--self.particles = Particles(world, CONTENT_DIR .. "Particles/particle.pex")
+	--self.particles.system:setAttrLink(MOAITransform.INHERIT_TRANSFORM, self.prop, MOAITransform.TRANSFORM_TRAIT)
 end
 
 --------------------------------------------------------------------------------
@@ -88,7 +94,7 @@ function Player:Initialise(world)
 				-- If we have collided with something that does damage
 				if objectB.damage then
 					self.health = self.health - objectB.damage
-					if self.health < 0 then
+					if self.health <= 0 then
 						self.dead = true
 					end
 					
@@ -193,8 +199,23 @@ function Player:Update()
 	end
 	
 	local impuse = { 0, 0 }
-	impuse[1] = moveSpeed * self.controller.inputs["moveX"]
-	impuse[2] = moveSpeed * self.controller.inputs["moveY"]
+	if self.controller.inputs["moveToX"] and self.controller.inputs["moveToY"] then
+		-- dtreadgold: Move in the direction of the moveTo
+		local moveTo = { self.controller.inputs["moveToX"], self.controller.inputs["moveToY"] }
+		local position = { self.body:getPosition() }
+		local moveVector = math.subVec( moveTo, position )
+		local distance = math.length(moveVector)
+		moveVector = math.divVecScl(moveVector, distance)
+		
+		local minDistance = 10
+		if distance > minDistance then
+			impuse[1] = moveSpeed * moveVector[1]
+			impuse[2] = moveSpeed * moveVector[2]
+		end		
+	else
+		impuse[1] = moveSpeed * self.controller.inputs["moveX"]
+		impuse[2] = moveSpeed * self.controller.inputs["moveY"]
+	end
 	
 	self.body:applyLinearImpulse(impuse[1], impuse[2])
 	
@@ -205,12 +226,12 @@ function Player:Update()
 	end
 	--]]
 	
+	self:FindTarget()
+
 	-- dtreadgold: Check if we should fire
-	if self.controller.inputs['fire'] and self.canFire then
-		local mouseX = self.controller.inputs["targetX"]
-		local mouseY = self.controller.inputs["targetY"]
-		local mousePosition = { self.world.layer:wndToWorld( mouseX, mouseY ) }
-		local fireDirection = math.subVec( mousePosition, { self.body:getPosition() } )
+	if self.target and self.canFire then
+		local targetPosition = { self.target.body:getPosition() }
+		local fireDirection = math.subVec( targetPosition, { self.body:getPosition() } )
 		fireDirection = math.normalise(fireDirection)
 		self:Fire(fireDirection)
 	end
@@ -219,14 +240,52 @@ end
 --------------------------------------------------------------------------------
 --
 --------------------------------------------------------------------------------
+function Player:FindTarget()	
+	self.target = nil
+
+	-- dtreadgold: Find the closest enemy to fire at
+	local position = { self.body:getPosition() }
+	local closestEnemy = nil
+	local closestDistanceSqrd = nil
+	local enemies = self.world.enemies
+	for enemyIndex, enemy in ipairs(enemies) do
+		local enemyPosition = { enemy.body:getPosition() }
+		local distanceSqrd = math.distanceSqrd( enemyPosition, position )
+		if not closestDistanceSqrd or distanceSqrd < closestDistanceSqrd then
+			closestDistanceSqrd = distanceSqrd
+			closestEnemy = enemy
+		end
+	end
+	
+	if closestEnemy then
+		self.target = closestEnemy
+	end
+end
+
+--------------------------------------------------------------------------------
+--
+--------------------------------------------------------------------------------
 function Player:Fire(fireDirection)	
-	local projectile = Projectile(self.world, self, fireDirection)
+	local projectile = Projectile(self.world, self, fireDirection, self.projectileDamage)
 	table.insert(self.world.projectiles, projectile)
 	self.canFire = false
 	
 	-- dtreadgold: Stop and start the timer again to make sure we can't fire too soon
 	self.fireTimer:stop()
 	self.fireTimer:start()
+end
+
+--------------------------------------------------------------------------------
+--
+--------------------------------------------------------------------------------
+function Player:Reset()
+	self.dead = false
+	self.health = self.initialHealth
+	self.body:setTransform(0, 0, 0)
+	self.body:setLinearVelocity(0, 0)
+	self.target = nil
+
+	self.controller:Reset()
 end
 
 

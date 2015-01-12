@@ -1,8 +1,8 @@
 local EnemyGreen = 
 {
 	fireType 			= "AtPlayer",
-	numberOfProjectiles = 1,
 	fireRate			= 1,
+	projectileDamage	= 2,
 	
 	health 				= 10,
 	maxMoveSpeed		= 150,

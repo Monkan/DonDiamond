@@ -120,7 +120,7 @@ function Enemy:Initialise(world)
 				-- If we have collided with something that does damage
 				if objectB.damage then
 					self.health = self.health - objectB.damage
-					if self.health < 0 then
+					if self.health <= 0 then
 						self.dead = true
 					end
 				end
@@ -226,7 +226,7 @@ end
 --------------------------------------------------------------------------------
 function Enemy:FireAtPlayer(directionToPlayer)
 	
-	local projectile = Projectile(self.world, self, directionToPlayer)
+	local projectile = Projectile(self.world, self, directionToPlayer, self.enemyInfo.projectileDamage)
 	table.insert(self.world.projectiles, projectile)
 end
 
@@ -237,10 +237,16 @@ function Enemy:FireRadius()
 	
 	local numProjectiles = self.enemyInfo.numberOfProjectiles
 	local angleStep = 360 / numProjectiles
+	
+	local startAngleOffset = 0
+	if self.enemyInfo.randomOffset > 0 then
+		startAngleOffset = math.random(0, (360 / self.enemyInfo.randomOffset) - 1) * self.enemyInfo.randomOffset
+	end
 	local direction = { 1, 0 }
+	direction = math.rotateVecAngle(direction, startAngleOffset)
 
 	for projectileIndex = 1, numProjectiles do
-		local projectile = Projectile(self.world, self, direction)
+		local projectile = Projectile(self.world, self, direction, self.enemyInfo.projectileDamage)
 		table.insert(self.world.projectiles, projectile)
 		
 		direction = math.rotateVecAngle(direction, angleStep)
