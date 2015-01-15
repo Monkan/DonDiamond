@@ -8,7 +8,7 @@ local World				= require("World/World")
 
 local Game = Class()
 
-local RoomDimensionsWorld = { 1280, 720 }
+local RoomDimensionsWorld = { 720, 1280 }
 local TileDimensions = { 40, 40 }
 
 --------------------------------------------------------------------------------
@@ -33,9 +33,8 @@ function Game:Constructor(mainLayer, physicsWorld)
 	local cameraFitter = MOAICameraFitter2D.new()	
 	cameraFitter:setViewport( mainLayer.viewport )
 	cameraFitter:setCamera( self.camera )
-	cameraFitter:setBounds( -1000, -1000, 1000, 1000 )
-	cameraFitter:setMin( 512 )
 	cameraFitter:start()
+	self.camera.fitter = cameraFitter
 	
 	self.world = World(mainLayer, physicsWorld)
 
@@ -51,6 +50,12 @@ function Game:Constructor(mainLayer, physicsWorld)
 	
 	-- dtreadgold: Set up the first room
 	self:MoveToRoom()
+	
+	-- dtreadgold: Add an anchor for the camera
+	local anchor = MOAICameraAnchor2D.new()
+	anchor:setParent(self.roomGrid)
+	anchor:setRect(-RoomDimensionsWorld[1] / 2, -RoomDimensionsWorld[2] / 2, RoomDimensionsWorld[1] / 2, RoomDimensionsWorld[2] / 2)
+	cameraFitter:insertAnchor(anchor)
 
 end
 
@@ -82,6 +87,9 @@ function Game:Update()
 		enemy:Update()
 		
 		if enemy.dead then
+			-- dtreadgold: Add the points to the player
+			self.player:AddPoints(enemy.enemyInfo.points)
+			
 			enemy.body:destroy()
 			self.layer:removeProp(enemy.prop)
 			table.remove(self.enemies, enemyIndex)
@@ -152,7 +160,7 @@ end
 function Game:PopulateRoom()
 	self:CloseDoors()
 
-	local enemyPoints = #self.rooms
+	local enemyPoints = #self.rooms - 1
 	while enemyPoints > 0 do
 		enemyPoints = self:CreateEnemy(enemyPoints)
 	end
@@ -182,6 +190,7 @@ function Game:PopulateRoom()
 		end
 
 		self.player.body:setTransform(unpack(startPositiion))
+		self.player.controller:Reset()
 	end
 end
 
@@ -210,12 +219,15 @@ function Game:OpenDoors()
 	-- dtreadgold: Open all doors
 	local roomGrid = self.roomGrid.grid
 	for doorName, door in pairs(self.doors) do
-		-- dtreadgold: Change the tiles
-		for doorTileIndex, doorTile in ipairs(door.tiles) do
-			roomGrid:setTile( doorTile[1], doorTile[2], 3 )			
-		end
-
-		door.body:setActive(true)
+		-- dtreadgold: Only open the top door
+		if doorName == "Top" then
+			-- dtreadgold: Change the tiles
+			for doorTileIndex, doorTile in ipairs(door.tiles) do
+				roomGrid:setTile( doorTile[1], doorTile[2], 3 )			
+			end
+			
+			door.body:setActive(true)
+		end		
 	end
 end
 
@@ -283,7 +295,7 @@ end
 function Game:CreateRoomGrid()
 	local layer = self.layer
 
-	local roomDimensionsTiles = { 32, 18 } --{ math.ceil(RoomDimensionsWorld[1] / TileDimensions[1]), math.ceil(RoomDimensionsWorld[2] / TileDimensions[2]) }
+	local roomDimensionsTiles = { math.ceil(RoomDimensionsWorld[1] / TileDimensions[1]), math.ceil(RoomDimensionsWorld[2] / TileDimensions[2]) }
 
 	-- dtreadgold: Setup the room grid
 	local grid = MOAIGrid.new ()
@@ -298,7 +310,7 @@ function Game:CreateRoomGrid()
 	for tileX = 1, roomDimensionsTiles[1] do
 		for tileY = 1, roomDimensionsTiles[2] do
 			if (tileX == 1 or tileX == roomDimensionsTiles[1]) or (tileY == 1 or tileY == roomDimensionsTiles[2]) then
-				grid:setTile( tileX, tileY,	1 )
+				grid:setTile( tileX, tileY,	6 )
 			else
 				grid:setTile( tileX, tileY,	3 )
 			end
@@ -343,10 +355,11 @@ function Game:CreateRoomGrid()
 	
 	self.doors = {}
 	for wallIndex, wallPosition in ipairs(wallPositions) do
+		
 		local door = self:CreateDoor(wallIndex, wallPosition, doorSize)
 		door.tiles = {}
-		local doorName = ''
 
+--[[
 		if wallIndex == 1 then
 			-- dtreadgold: Left door
 			for doorOffsetIndex = 1, doorSize do
@@ -357,7 +370,7 @@ function Game:CreateRoomGrid()
 				table.insert(door.tiles, tilePosition)
 				door.name = 'Left'
 			end
-		elseif wallIndex == 2 then
+		else --]] if wallIndex == 2 then
 			-- dtreadgold: Top door
 			for doorOffsetIndex = 1, doorSize do
 				local tileXPos = (roomDimensionsTiles[1] / 2) - (doorSize / 2) + doorOffsetIndex
@@ -367,7 +380,7 @@ function Game:CreateRoomGrid()
 				table.insert(door.tiles, tilePosition)
 				door.name = 'Top'
 			end
-		elseif wallIndex == 3 then
+		else--[[if wallIndex == 3 then
 			-- dtreadgold: Right door
 			for doorOffsetIndex = 1, doorSize do
 				local tileYPos = (roomDimensionsTiles[2] / 2) - (doorSize / 2) + doorOffsetIndex
@@ -377,7 +390,7 @@ function Game:CreateRoomGrid()
 				table.insert(door.tiles, tilePosition)
 				door.name = 'Right'
 			end
-		else
+		else--]]
 			-- dtreadgold: Bottom door
 			for doorOffsetIndex = 1, doorSize do
 				local tileXPos = (roomDimensionsTiles[1] / 2) - (doorSize / 2) + doorOffsetIndex
@@ -390,6 +403,7 @@ function Game:CreateRoomGrid()
 		end
 
 		self.doors[door.name] = door
+
 	end
 
 end
@@ -400,7 +414,7 @@ end
 function Game:CreateDoor(wallIndex, wallPosition, doorSize)
 	local door = {}
 	
-		-- dtreadgold: Create door physics
+	-- dtreadgold: Create door physics
 	function door.onCollide( event, fixtureA, fixtureB, arbiter )
 		local bodyA = fixtureA:getBody()
 		local bodyB = fixtureB:getBody()

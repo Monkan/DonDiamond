@@ -6,7 +6,7 @@
         <key>texturePackerVersion</key>
         <string>3.3.4</string>
         <key>fileName</key>
-        <string>C:/Development/Symmetry/Game/GameCode/roomTiles.tps</string>
+        <string>C:/Development/Symmetry/Game/Content/Graphics/roomTiles.tps</string>
         <key>autoSDSettings</key>
         <array>
             <struct type="AutoSDSettings">

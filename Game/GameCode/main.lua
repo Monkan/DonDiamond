@@ -1,6 +1,8 @@
 Class = require "Util/Class"
 require "Util/Table"
 require "Util/Math"
+local Utils = require("Util/Utils")
+
 
 local Game = require "World/Game"
 
@@ -8,7 +10,12 @@ local Game = require "World/Game"
 CONTENT_DIR = "../Content/"
 GRAPHICS_DIR = CONTENT_DIR .. "Graphics/"
 
-local resolution = { 1280, 720 }
+local resolution = { 0, 0 }
+if Utils:IsMobile() then
+	resolution = { 720, 1280 }
+else
+	resolution = { 360, 640 }
+end
 
 local viewport = MOAIViewport.new()
 viewport:setSize( unpack(resolution) )

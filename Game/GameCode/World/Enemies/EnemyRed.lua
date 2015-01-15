@@ -1,14 +1,14 @@
 local EnemyRed = 
 {
 	fireType 			= "Radius",
-	numberOfProjectiles = 8,
-	fireRate			= 2.5,
-	randomOffset		= 0,
+	numberOfProjectiles = 16,
+	fireRate			= 3,
+	randomOffset		= 10,
 	projectileDamage	= 8,
 	
-	health 				= 80,
-	maxMoveSpeed		= 50,
-	points				= 5,
+	health 				= 100,
+	maxMoveSpeed		= 40,
+	points				= 8,
 	
 	texture				= "enemy1.png",
 }

@@ -10,17 +10,12 @@ function Controller:Constructor(owner)
 	self.owner = owner
 	self.inputs = 
 	{
-		moveX 	= 0,
-		moveY 	= 0,
-		fire	= false,
-		targetX	= 0,
-		targetY = 0,
 		moveToX	= nil,
-		moveToY	= nil
+		moveToY	= nil,
+		mouseX	= 0,
+		mouseY 	= 0,
+		mouseDown = false
 	}
-	
-	self.prevMoveX = 0
-	self.prevMoveY = 0
 	
 	if Utils:IsMobile() then
 		self:SetupMobileInputs()
@@ -33,6 +28,8 @@ end
 -- 
 --------------------------------------------------------------------------------
 function Controller:SetupPCInputs()
+	
+	--[[
 	-- dtreadgold: Use the keyboard for movement controls
 	function onKeyboardEvent( key, down )
 		local keyChar = string.char(key)
@@ -43,12 +40,14 @@ function Controller:SetupPCInputs()
 			elseif self.inputs["moveY"] == 1 then
 				self.inputs["moveY"] = 0
 			end
+			
 		elseif keyChar == "s" or keyChar == "S" then
 			if down then
 				self.inputs["moveY"] = -1
 			elseif self.inputs["moveY"] == -1 then
 				self.inputs["moveY"] = 0
 			end
+
 		end
 		
 		if keyChar == "d" or keyChar == "D" then
@@ -67,17 +66,16 @@ function Controller:SetupPCInputs()
 
 	end
 	MOAIInputMgr.device.keyboard:setCallback( onKeyboardEvent )
+	--]]
 	
 	function onMouseLeftEvent( down )
-		self.inputs["fire"] = down
+		self.inputs.mouseDown = down
 	end
 	MOAIInputMgr.device.mouseLeft:setCallback( onMouseLeftEvent )
 	
 	function onPointerEvent(x, y)
-		local layer = self.owner.world.layer
-		local targetPosition = { layer:wndToWorld(x, y) }
-		self.inputs["targetX"] = targetPosition[1]
-		self.inputs["targetY"] = targetPosition[2]
+		self.inputs.mouseX = x
+		self.inputs.mouseY = y
 	end
 	MOAIInputMgr.device.pointer:setCallback(onPointerEvent)
 end
@@ -91,19 +89,23 @@ function Controller:SetupMobileInputs()
 		local layer = self.owner.world.layer
 		local worldPosition = { layer:wndToWorld(x, y) }
 
-		if eventType == MOAITouchSensor.TOUCH_DOWN then
-			self.inputs["fire"] = true
-		elseif eventType == MOAITouchSensor.TOUCH_UP then
-			self.inputs["fire"] = false
-		end
-		
-		self.inputs["targetX"] = worldPosition[1]
-		self.inputs["targetY"] = worldPosition[2]
-		
-		self.inputs["moveToX"] = worldPosition[1]
-		self.inputs["moveToY"] = worldPosition[2]
+		self.inputs.moveToX = worldPosition[1]
+		self.inputs.moveToY = worldPosition[2]
 	end
 	MOAIInputMgr.device.touch:setCallback( onTapEvent )
+end
+
+--------------------------------------------------------------------------------
+--
+--------------------------------------------------------------------------------
+function Controller:Update()
+	if self.inputs.mouseDown then
+		local layer = self.owner.world.layer
+		local worldPosition = { layer:wndToWorld(self.inputs.mouseX, self.inputs.mouseY) }
+
+		self.inputs.moveToX = worldPosition[1]
+		self.inputs.moveToY = worldPosition[2]
+	end
 end
 
 
@@ -113,13 +115,11 @@ end
 function Controller:Reset()
 	self.inputs = 
 	{
-		moveX 	= 0,
-		moveY 	= 0,
-		fire	= false,
-		targetX	= 0,
-		targetY = 0,
 		moveToX	= nil,
-		moveToY	= nil
+		moveToY	= nil,
+		mouseX	= 0,
+		mouseY 	= 0,
+		mouseDown = false
 	}
 end
 

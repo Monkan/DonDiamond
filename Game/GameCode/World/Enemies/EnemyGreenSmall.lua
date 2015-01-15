@@ -1,12 +1,12 @@
 local EnemyGreen = 
 {
 	fireType 			= "AtPlayer",
-	fireRate			= 1,
-	projectileDamage	= 2,
+	fireRate			= 0.8,
+	projectileDamage	= 1,
 	
-	health 				= 20,
-	maxMoveSpeed		= 120,
-	points				= 2,
+	health 				= 10,
+	maxMoveSpeed		= 150,
+	points				= 1,
 	
 	texture				= "greenenemy1.png",
 }

@@ -9,9 +9,14 @@ local Enemy = Class()
 --------------------------------------------------------------------------------
 Enemy.Types = 
 {	
-	Red 	= require("World/Enemies/EnemyRed"),
-	Green 	= require("World/Enemies/EnemyGreen"),
-	Blue 	= require("World/Enemies/EnemyBlue"),
+	RedSmall	= require("World/Enemies/EnemyRedSmall"),
+	Red 		= require("World/Enemies/EnemyRed"),
+	
+	GreenSmall	= require("World/Enemies/EnemyGreenSmall"),
+	Green 		= require("World/Enemies/EnemyGreen"),
+	
+	BlueSmall	= require("World/Enemies/EnemyBlueSmall"),
+	Blue 		= require("World/Enemies/EnemyBlue"),
 }
 
 --------------------------------------------------------------------------------

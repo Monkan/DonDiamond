@@ -14,15 +14,17 @@ function Player:Constructor(world)
 
 	self.initialHealth = 100
 	self.health = self.initialHealth
-	self.points = 0
 	self.faction = "Good"	
 	self.projectileDamage = 5
+
+	self.pointsPerLevel = 100
+	self.points = 0
 	
 	self.controller = Controller(self)
 	self:Initialise(world)
 	
 	self.canFire = true
-	local fireRate = 0.3
+	local fireRate = 0.35
 	local fireTimer = MOAITimer.new()
 	fireTimer:setSpan(fireRate)
 	fireTimer:setMode(MOAITimer.LOOP)
@@ -78,8 +80,8 @@ function Player:Initialise(world)
 	layer:insertProp ( self.prop )
 	
 	local worldBody = physicsWorld:addBody ( MOAIBox2DBody.DYNAMIC )
-	local fixture = worldBody:addCircle( 0, 0, size[1] / 2 )
-	--local fixture = worldBody:addRect( -size[1] / 2, -size[2] / 2, size[1] / 2, size[2] / 2 )
+	--local fixture = worldBody:addCircle( 0, 0, size[1] / 2 )
+	local fixture = worldBody:addRect( -size[1] / 2, -size[2] / 2, size[1] / 2, size[2] / 2 )
 	fixture:setFilter( CollisionFilters.Category.Player, CollisionFilters.Mask.Player )
 	
 	function onCollide( event, fixtureA, fixtureB, arbiter )
@@ -127,7 +129,7 @@ function Player:Initialise(world)
 	-- dtreadgold: Add the prop for the crown
 	local crownQuad = MOAIGfxQuad2D.new ()
 	crownQuad:setTexture ( GRAPHICS_DIR .. "crown.png" )
-	local crownSize = { 35, 32 }
+	local crownSize = { 52.5, 48 }
 	crownQuad:setRect ( -crownSize[1] / 2, -crownSize[2] / 2, crownSize[1] / 2, crownSize[2] / 2 )
 
 	self.crownProp = MOAIProp2D.new()
@@ -135,10 +137,37 @@ function Player:Initialise(world)
 	self.crownProp.deck = crownQuad
 	layer:insertProp ( self.crownProp )
 	self.crownProp:setLoc(0, 50)
+	self:AddPoints(0)
 	
 	self.crownProp:setAttrLink(MOAITransform.INHERIT_TRANSFORM, self.prop, MOAITransform.TRANSFORM_TRAIT)
 
 end
+
+--------------------------------------------------------------------------------
+--
+--------------------------------------------------------------------------------
+function Player:AddPoints(amount)
+	local oldLevel = math.floor(self.points / self.pointsPerLevel)
+	self.pointsPerLevel = 100
+	self.points = self.points + amount
+	
+	local newLevel = math.floor(self.points / self.pointsPerLevel)
+	if newLevel > oldLevel then
+		self:LevelUp()
+	end
+
+	-- dtreadgold: Get the amount of points for this level to use as a scale for the crown
+	self.levelPoints = (self.points / self.pointsPerLevel) - newLevel
+	self.crownProp:setScl(math.min(math.max(self.levelPoints / 100, 0.4), 1))
+end
+
+--------------------------------------------------------------------------------
+--
+--------------------------------------------------------------------------------
+function Player:LevelUp()
+	
+end
+
 
 --------------------------------------------------------------------------------
 --
@@ -183,6 +212,8 @@ end
 --------------------------------------------------------------------------------
 function Player:Update()
 
+	self.controller:Update()
+
 	--local playerLoc = { self.player:getLoc() }
 	--self.player:setLoc(playerLoc[1] + 1, playerLoc[2])
 	
@@ -212,9 +243,6 @@ function Player:Update()
 			impuse[1] = moveSpeed * moveVector[1]
 			impuse[2] = moveSpeed * moveVector[2]
 		end		
-	else
-		impuse[1] = moveSpeed * self.controller.inputs["moveX"]
-		impuse[2] = moveSpeed * self.controller.inputs["moveY"]
 	end
 	
 	self.body:applyLinearImpulse(impuse[1], impuse[2])
@@ -284,6 +312,7 @@ function Player:Reset()
 	self.body:setTransform(0, 0, 0)
 	self.body:setLinearVelocity(0, 0)
 	self.target = nil
+	self.points = 0
 
 	self.controller:Reset()
 end
