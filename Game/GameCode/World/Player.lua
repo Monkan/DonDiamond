@@ -12,12 +12,12 @@ local Player = Class()
 function Player:Constructor(world)
 	self.world = world
 
-	self.initialHealth = 100
+	self.initialHealth = 500
 	self.health = self.initialHealth
 	self.faction = "Good"	
-	self.projectileDamage = 5
+	self.projectileDamage = 2
 
-	self.pointsPerLevel = 100
+	self.pointsPerLevel = 30
 	self.points = 0
 	
 	self.controller = Controller(self)
@@ -70,14 +70,15 @@ function Player:Initialise(world)
 	local physicsWorld = world.physicsWorld
 
 	-- dtreadgold: Set up player
-	local playerQuad = MOAIGfxQuad2D.new ()
-	playerQuad:setTexture ( GRAPHICS_DIR .. "playerbody.png" )
-	local size = { 100, 67 }
-	playerQuad:setRect ( -size[1] / 2, -size[2] / 2, size[1] / 2, size[2] / 2 )
+	local deck, names = TexturePacker:Load(GRAPHICS_DIR .. "player.lua", GRAPHICS_DIR .. "player.png")
+	deck.names = names
 
 	self.prop = MOAIProp2D.new()
-	self.prop:setDeck ( playerQuad )
+	self.prop:setDeck ( deck )
+	self.prop:setIndex( deck.names["playerbody.png"] )
+	self.prop.deck = deck
 	layer:insertProp ( self.prop )
+	local size = { 100, 67 }
 	
 	local worldBody = physicsWorld:addBody ( MOAIBox2DBody.DYNAMIC )
 	--local fixture = worldBody:addCircle( 0, 0, size[1] / 2 )
@@ -114,12 +115,9 @@ function Player:Initialise(world)
 	self.body:setLinearDamping(3)
 	
 	-- dtreadgold: Add the prop for the mouth
-	local mouthDeck, names = TexturePacker:Load(GRAPHICS_DIR .. "playerMouths.lua", GRAPHICS_DIR .. "playerMouths.png")
-	mouthDeck.names = names
-
 	self.mouthProp = MOAIProp2D.new()
-	self.mouthProp:setDeck ( mouthDeck )
-	self.mouthProp.deck = mouthDeck
+	self.mouthProp:setDeck ( deck )
+	self.mouthProp.deck = deck
 	layer:insertProp ( self.mouthProp )
 	self.mouthProp:setLoc(0, 0)	
 	self.mouthProp:setAttrLink(MOAITransform.INHERIT_TRANSFORM, self.prop, MOAITransform.TRANSFORM_TRAIT)
@@ -127,14 +125,10 @@ function Player:Initialise(world)
 	self:SetMood("Happy")
 	
 	-- dtreadgold: Add the prop for the crown
-	local crownQuad = MOAIGfxQuad2D.new ()
-	crownQuad:setTexture ( GRAPHICS_DIR .. "crown.png" )
-	local crownSize = { 52.5, 48 }
-	crownQuad:setRect ( -crownSize[1] / 2, -crownSize[2] / 2, crownSize[1] / 2, crownSize[2] / 2 )
-
 	self.crownProp = MOAIProp2D.new()
-	self.crownProp:setDeck ( crownQuad )
-	self.crownProp.deck = crownQuad
+	self.crownProp:setDeck ( deck )
+	self.crownProp:setIndex( deck.names["crown.png"] )
+	self.crownProp.deck = deck
 	layer:insertProp ( self.crownProp )
 	self.crownProp:setLoc(0, 50)
 	self:AddPoints(0)
@@ -148,24 +142,31 @@ end
 --------------------------------------------------------------------------------
 function Player:AddPoints(amount)
 	local oldLevel = math.floor(self.points / self.pointsPerLevel)
-	self.pointsPerLevel = 100
 	self.points = self.points + amount
 	
 	local newLevel = math.floor(self.points / self.pointsPerLevel)
 	if newLevel > oldLevel then
-		self:LevelUp()
+		self:LevelUp(newLevel)
 	end
 
 	-- dtreadgold: Get the amount of points for this level to use as a scale for the crown
 	self.levelPoints = (self.points / self.pointsPerLevel) - newLevel
-	self.crownProp:setScl(math.min(math.max(self.levelPoints / 100, 0.4), 1))
+	local minCrownScale = 0.3
+	local maxCrownScale = 0.8
+	local crownScale = ((self.levelPoints / self.pointsPerLevel) / (maxCrownScale - minCrownScale)) + minCrownScale
+	self.crownProp:setScl(crownScale)
 end
 
 --------------------------------------------------------------------------------
 --
 --------------------------------------------------------------------------------
-function Player:LevelUp()
+function Player:LevelUp(newLevel)
+	self.prop:setScl(1 + ((newLevel + 1) / 100))
 	
+	self.health = math.min( self.health + (newLevel * 10), self.initialHealth )
+	if newLevel % 2 == 0 then
+		self.projectileDamage = self.projectileDamage + 1
+	end
 end
 
 
@@ -214,11 +215,8 @@ function Player:Update()
 
 	self.controller:Update()
 
-	--local playerLoc = { self.player:getLoc() }
-	--self.player:setLoc(playerLoc[1] + 1, playerLoc[2])
-	
-	local moveSpeed = 20
-	local maxMoveSpeed = 200
+	local moveSpeed = 50
+	local maxMoveSpeed = 300
 	
 	-- dtreadgold: Clamp the movement speed to max move speed
 	local velocity = { self.body:getLinearVelocity() }
@@ -230,9 +228,9 @@ function Player:Update()
 	end
 	
 	local impuse = { 0, 0 }
-	if self.controller.inputs["moveToX"] and self.controller.inputs["moveToY"] then
+	if self.controller.inputs.moveToX and self.controller.inputs.moveToY then
 		-- dtreadgold: Move in the direction of the moveTo
-		local moveTo = { self.controller.inputs["moveToX"], self.controller.inputs["moveToY"] }
+		local moveTo = { self.controller.inputs.moveToX, self.controller.inputs.moveToY }
 		local position = { self.body:getPosition() }
 		local moveVector = math.subVec( moveTo, position )
 		local distance = math.length(moveVector)
@@ -293,9 +291,8 @@ end
 --------------------------------------------------------------------------------
 --
 --------------------------------------------------------------------------------
-function Player:Fire(fireDirection)	
-	local projectile = Projectile(self.world, self, fireDirection, self.projectileDamage)
-	table.insert(self.world.projectiles, projectile)
+function Player:Fire(fireDirection)
+	self.world:CreateProjectile(self, fireDirection, self.projectileDamage)	
 	self.canFire = false
 	
 	-- dtreadgold: Stop and start the timer again to make sure we can't fire too soon

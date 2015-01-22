@@ -10,12 +10,10 @@ local Game = require "World/Game"
 CONTENT_DIR = "../Content/"
 GRAPHICS_DIR = CONTENT_DIR .. "Graphics/"
 
-local resolution = { 0, 0 }
-if Utils:IsMobile() then
-	resolution = { 720, 1280 }
-else
-	resolution = { 360, 640 }
-end
+
+local screenWidth = MOAIEnvironment.horizontalResolution or 360
+local screenHeight = MOAIEnvironment.verticalResolution or 640
+local resolution = { screenWidth, screenHeight }
 
 local viewport = MOAIViewport.new()
 viewport:setSize( unpack(resolution) )

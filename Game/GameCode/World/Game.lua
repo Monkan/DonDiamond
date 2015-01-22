@@ -5,11 +5,13 @@ local Player			= require("World/Player")
 local Enemy				= require("World/Enemy")
 local CollisionFilters 	= require("World/CollisionFilters")
 local World				= require("World/World")
+local Key				= require("World/Key")
 
 local Game = Class()
 
 local RoomDimensionsWorld = { 720, 1280 }
 local TileDimensions = { 40, 40 }
+local RoomDimensionsTiles = { math.ceil(RoomDimensionsWorld[1] / TileDimensions[1]), math.ceil(RoomDimensionsWorld[2] / TileDimensions[2]) }
 
 --------------------------------------------------------------------------------
 -- Constructor
@@ -22,9 +24,11 @@ function Game:Constructor(mainLayer, physicsWorld)
 	self.layer = mainLayer
 	self.physicsWorld = physicsWorld
 	
-	self.enemies = {}
-	self.projectiles = {}
-	self.rooms = {}
+	self.world = World(mainLayer, physicsWorld)
+
+	self.enemies = self.world.enemies
+	self.projectiles = self.world.projectiles
+	self.rooms = self.world.rooms
 
 	-- dtreadgold: Set up camera
 	self.camera = MOAICamera2D.new()
@@ -35,12 +39,6 @@ function Game:Constructor(mainLayer, physicsWorld)
 	cameraFitter:setCamera( self.camera )
 	cameraFitter:start()
 	self.camera.fitter = cameraFitter
-	
-	self.world = World(mainLayer, physicsWorld)
-
-	self.world.enemies = self.enemies
-	self.world.projectiles = self.projectiles
-	self.world.rooms = self.rooms
 	
 	self:CreateBackground()
 	self:CreateRoomGrid()
@@ -77,6 +75,7 @@ end
 --
 --------------------------------------------------------------------------------
 function Game:Update()
+	self.world:Update()
 	self.player:Update()
 	if self.player.dead then
 		self:Restart()
@@ -90,24 +89,25 @@ function Game:Update()
 			-- dtreadgold: Add the points to the player
 			self.player:AddPoints(enemy.enemyInfo.points)
 			
-			enemy.body:destroy()
-			self.layer:removeProp(enemy.prop)
+			-- dtreadgold: If this is the last enemy then spawn the key
+			if #self.enemies == 1 then
+				self:SpawnKey( {enemy.body:getPosition()} )
+			end
+
+			enemy:Destroy()
 			table.remove(self.enemies, enemyIndex)
 		end
 	end
 	
-	-- dtreadgold: Remove any dead projectiles
-	for projectileIndex, projectile in ipairs(self.projectiles) do
-		if projectile.dead then
-			projectile.body:destroy()
-			self.layer:removeProp(projectile.prop)
-			table.remove(self.projectiles, projectileIndex)
-		end
-	end
-	
-	-- dtreadgold: Check if the room has been cleared of enemies
-	if #self.enemies == 0 then
-		self:RoomFinished()
+	-- dtreadgold: Check for the key being picked up
+	if self.key and self.key.dead then
+		-- dtreadgold: Add the points to the player
+		self.player:AddPoints(self.key.points)
+
+		self.key:Destroy()
+		self.key = nil
+		
+		self:RoomFinished()		
 	end
 	
 	if self.shouldMoveRoom then
@@ -126,12 +126,21 @@ end
 --------------------------------------------------------------------------------
 --
 --------------------------------------------------------------------------------
+function Game:SpawnKey(position)
+	self.key = Key(self.world, position)
+end
+
+--------------------------------------------------------------------------------
+--
+--------------------------------------------------------------------------------
 function Game:MoveToRoom()
 	self.currentRoom = Room()
 	table.insert(self.rooms, self.currentRoom)
 
 	self:ClearRoom()
 	self:PopulateRoom()
+	
+	self.roomFinished = false
 end
 
 --------------------------------------------------------------------------------
@@ -159,14 +168,10 @@ end
 --------------------------------------------------------------------------------
 function Game:PopulateRoom()
 	self:CloseDoors()
+	local roomNumber = #self.rooms
+	local startPositiion = { 0, 0 }
 
-	local enemyPoints = #self.rooms - 1
-	while enemyPoints > 0 do
-		enemyPoints = self:CreateEnemy(enemyPoints)
-	end
-	
-	if self.usedDoor then
-		local startPositiion = { 0, 0 }		
+	if self.usedDoor then				
 		if self.usedDoor.name == "Top" then
 			local startDoor = "Bottom"
 			startPositiion = { self.doors[startDoor].body:getPosition() }
@@ -191,6 +196,20 @@ function Game:PopulateRoom()
 
 		self.player.body:setTransform(unpack(startPositiion))
 		self.player.controller:Reset()
+	end
+	
+		-- dtreadgold: In the first room spawn a key and no enemies
+	if roomNumber == 1 then
+		local keyPosition = startPositiion
+		keyPosition[2] = keyPosition[2] + 300
+		self:SpawnKey( keyPosition )
+	else
+
+		local enemyPoints = roomNumber
+		while enemyPoints > 0 do
+			enemyPoints = self:CreateEnemy(enemyPoints)
+		end
+
 	end
 end
 
@@ -263,16 +282,42 @@ function Game:CreateEnemy(pointsRemaining)
 	local enemy = Enemy(self.world, enemyInfo)
 	table.insert(self.enemies, enemy)
 	
-	local position =
+	local tilePosition = 
 	{
-		math.random( (-RoomDimensionsWorld[1] / 2) + TileDimensions[1], (RoomDimensionsWorld[1] / 2) - TileDimensions[1] ),
-		math.random( (-RoomDimensionsWorld[2] / 2) + TileDimensions[2], (RoomDimensionsWorld[2] / 2) - TileDimensions[2] ),
+		math.random( 3, RoomDimensionsTiles[1] - 3 ),
+		math.random( RoomDimensionsTiles[2] / 2, RoomDimensionsTiles[2] - 3 )
 	}
+	
+	-- dtreadgold: Round the tile up to the nearest even number
+	tilePosition[1] = tilePosition[1] + (tilePosition[1] % 2)
+	tilePosition[2] = tilePosition[2] + (tilePosition[2] % 2)
+
+	local position = self:TileToWorldPosition(tilePosition)
 	enemy.body:setTransform(position[1], position[2], 0)
 	
 	return pointsRemaining - enemyInfo.points
 end
 
+
+--------------------------------------------------------------------------------
+--
+--------------------------------------------------------------------------------
+function Game:TileToWorldPosition(position)
+	local worldPosition =
+	{
+		((position[1] + 0.5) * TileDimensions[1]) - (RoomDimensionsWorld[1] / 2),
+		((position[2] + 0.5) * TileDimensions[2]) - (RoomDimensionsWorld[2] / 2)
+	}
+	
+	return worldPosition
+end
+
+--------------------------------------------------------------------------------
+--
+--------------------------------------------------------------------------------
+function Game:WorldToTilePosition()
+	
+end
 
 --------------------------------------------------------------------------------
 -- dtreadgold: Set up background image
@@ -295,11 +340,9 @@ end
 function Game:CreateRoomGrid()
 	local layer = self.layer
 
-	local roomDimensionsTiles = { math.ceil(RoomDimensionsWorld[1] / TileDimensions[1]), math.ceil(RoomDimensionsWorld[2] / TileDimensions[2]) }
-
 	-- dtreadgold: Setup the room grid
 	local grid = MOAIGrid.new ()
-	grid:initRectGrid( roomDimensionsTiles[1], roomDimensionsTiles[2], TileDimensions[1], TileDimensions[2], 0, 0, 1, 1 )
+	grid:initRectGrid( RoomDimensionsTiles[1], RoomDimensionsTiles[2], TileDimensions[1], TileDimensions[2], 0, 0, 1, 1 )
 
 	local tileDeck = TexturePacker:Load(GRAPHICS_DIR .. "roomTiles.lua", GRAPHICS_DIR .. "roomTiles.png", { x0 = 0, y0 = 0, x1 = 1, y1 = 1 })
 	local roomGridProp = MOAIProp2D.new()
@@ -307,9 +350,9 @@ function Game:CreateRoomGrid()
 	roomGridProp:setGrid( grid )
 	roomGridProp.grid = grid
 	
-	for tileX = 1, roomDimensionsTiles[1] do
-		for tileY = 1, roomDimensionsTiles[2] do
-			if (tileX == 1 or tileX == roomDimensionsTiles[1]) or (tileY == 1 or tileY == roomDimensionsTiles[2]) then
+	for tileX = 1, RoomDimensionsTiles[1] do
+		for tileY = 1, RoomDimensionsTiles[2] do
+			if (tileX == 1 or tileX == RoomDimensionsTiles[1]) or (tileY == 1 or tileY == RoomDimensionsTiles[2]) then
 				grid:setTile( tileX, tileY,	6 )
 			else
 				grid:setTile( tileX, tileY,	3 )
@@ -363,7 +406,7 @@ function Game:CreateRoomGrid()
 		if wallIndex == 1 then
 			-- dtreadgold: Left door
 			for doorOffsetIndex = 1, doorSize do
-				local tileYPos = (roomDimensionsTiles[2] / 2) - (doorSize / 2) + doorOffsetIndex
+				local tileYPos = (RoomDimensionsTiles[2] / 2) - (doorSize / 2) + doorOffsetIndex
 				local tilePosition = { 1, tileYPos }
 				grid:setTile( tilePosition[1], tilePosition[2], 2 )
 				
@@ -373,8 +416,8 @@ function Game:CreateRoomGrid()
 		else --]] if wallIndex == 2 then
 			-- dtreadgold: Top door
 			for doorOffsetIndex = 1, doorSize do
-				local tileXPos = (roomDimensionsTiles[1] / 2) - (doorSize / 2) + doorOffsetIndex
-				local tilePosition = { tileXPos, roomDimensionsTiles[2] }
+				local tileXPos = (RoomDimensionsTiles[1] / 2) - (doorSize / 2) + doorOffsetIndex
+				local tilePosition = { tileXPos, RoomDimensionsTiles[2] }
 				grid:setTile( tilePosition[1], tilePosition[2], 2 )
 				
 				table.insert(door.tiles, tilePosition)
@@ -383,8 +426,8 @@ function Game:CreateRoomGrid()
 		else--[[if wallIndex == 3 then
 			-- dtreadgold: Right door
 			for doorOffsetIndex = 1, doorSize do
-				local tileYPos = (roomDimensionsTiles[2] / 2) - (doorSize / 2) + doorOffsetIndex
-				local tilePosition = { roomDimensionsTiles[1], tileYPos }
+				local tileYPos = (RoomDimensionsTiles[2] / 2) - (doorSize / 2) + doorOffsetIndex
+				local tilePosition = { RoomDimensionsTiles[1], tileYPos }
 				grid:setTile( tilePosition[1], tilePosition[2], 2 )
 				
 				table.insert(door.tiles, tilePosition)
@@ -393,7 +436,7 @@ function Game:CreateRoomGrid()
 		else--]]
 			-- dtreadgold: Bottom door
 			for doorOffsetIndex = 1, doorSize do
-				local tileXPos = (roomDimensionsTiles[1] / 2) - (doorSize / 2) + doorOffsetIndex
+				local tileXPos = (RoomDimensionsTiles[1] / 2) - (doorSize / 2) + doorOffsetIndex
 				local tilePosition = { tileXPos, 1 }
 				grid:setTile( tilePosition[1], tilePosition[2], 2 )
 				

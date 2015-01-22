@@ -7,17 +7,17 @@ local Category =
 	Enemy 					= 4,
 	EnemyProjectiles 		= 8,
 	Environment 			= 16,
-	ClickDetectArea 		= 32,
+	Key				 		= 32,
 }
 
 local Mask = 
 {
-	Player 					= Category.Enemy + Category.EnemyProjectiles + Category.Environment,
+	Player 					= Category.Enemy + Category.EnemyProjectiles + Category.Environment + Category.Key,
 	FriendlyProjectiles 	= Category.Enemy + Category.EnemyProjectiles + Category.Environment,
-	Enemy 					= Category.Player + Category.Enemy + Category.FriendlyProjectiles + Category.EnemyProjectiles + Category.Environment + Category.ClickDetectArea,	
+	Enemy 					= Category.Player + Category.Enemy + Category.FriendlyProjectiles + Category.EnemyProjectiles + Category.Environment,	
 	EnemyProjectiles 		= Category.Player + Category.Enemy + Category.FriendlyProjectiles + Category.Environment,
 	Environment				= Category.Player + Category.Enemy + Category.FriendlyProjectiles + Category.EnemyProjectiles + Category.Environment,
-	ClickDetectArea			= Category.Enemy,
+	Key						= Category.Player
 }
 
 CollisionFilters.Category = Category

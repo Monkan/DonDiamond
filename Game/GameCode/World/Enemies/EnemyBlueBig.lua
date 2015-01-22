@@ -1,14 +1,14 @@
 local EnemyBlue = 
 {
 	fireType 			= "Radius",
-	numberOfProjectiles = 2,
-	fireRate			= 1,
+	numberOfProjectiles = 3,
+	fireRate			= 2,
 	randomOffset		= 45,
-	projectileDamage	= 3,
+	projectileDamage	= 5,
 	
-	health 				= 20,
-	maxMoveSpeed		= 150,
-	points				= 2,
+	health 				= 50,
+	maxMoveSpeed		= 100,
+	points				= 4,
 	
 	textures = 
 	{
@@ -18,7 +18,7 @@ local EnemyBlue =
 		"blue_100.png",
 	},
 
-	scale				= 0.5,
+	scale				= 1.0,
 }
 
 return EnemyBlue
