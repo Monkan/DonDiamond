@@ -1,14 +1,19 @@
 local EnemyBlue = 
 {
-	fireType 			= "Radius",
-	numberOfProjectiles = 2,
-	fireRate			= 1,
-	randomOffset		= 45,
-	projectileDamage	= 3,
+	weapons =
+	{
+		{
+			fireType 			= "Radius",
+			fireRate			= 1,
+			numberOfProjectiles = 2,
+			randomOffset		= 45,
+			projectileDamage	= 3,
+		}
+	},
 	
-	health 				= 20,
+	health 				= 30,
 	maxMoveSpeed		= 150,
-	points				= 2,
+	points				= 3,
 	
 	textures = 
 	{

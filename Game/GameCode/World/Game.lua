@@ -16,23 +16,52 @@ local RoomDimensionsTiles = { math.ceil(RoomDimensionsWorld[1] / TileDimensions[
 --------------------------------------------------------------------------------
 -- Constructor
 --------------------------------------------------------------------------------
-function Game:Constructor(mainLayer, physicsWorld)
+function Game:Constructor()
 	
 	math.randomseed(MOAISim.getDeviceTime())
-	--MOAIGfxDevice.getFrameBuffer():setClearColor(1.0, 1.0, 1.0, 1.0)
+
+	local screenWidth = MOAIEnvironment.horizontalResolution or 360
+	local screenHeight = MOAIEnvironment.verticalResolution or 640
+
+	MOAISim.openWindow( "DonDiamond", screenWidth, screenHeight )
+
+	local viewport = MOAIViewport.new()
+	viewport:setSize( screenWidth, screenHeight )
+	viewport:setScale( screenWidth, screenHeight )
+
+	local mainLayer = MOAILayer2D.new()
+	mainLayer:setViewport( viewport )
+	mainLayer.viewport = viewport
+	MOAISim.pushRenderPass( mainLayer )
+
+	-- dtreadgold: Set up box2d world
+	local physicsWorld = MOAIBox2DWorld.new()
+	--physicsWorld:setDebugDrawEnabled(true)
+	physicsWorld:setDebugDrawEnabled(false)
+	physicsWorld:setGravity( 0, 0 )
+	physicsWorld:setUnitsToMeters( .05 )
+	physicsWorld:start()
+
+	local physicsLayer = MOAILayer2D.new()
+	physicsLayer:setViewport( viewport )
+	physicsLayer.viewport = viewport
+	MOAISim.pushRenderPass( physicsLayer )
+
+	--mainLayer:setBox2DWorld( physicsWorld )
+	physicsLayer:setBox2DWorld( physicsWorld )
 
 	self.layer = mainLayer
 	self.physicsWorld = physicsWorld
 	
 	self.world = World(mainLayer, physicsWorld)
 
-	self.enemies = self.world.enemies
 	self.projectiles = self.world.projectiles
 	self.rooms = self.world.rooms
 
 	-- dtreadgold: Set up camera
 	self.camera = MOAICamera2D.new()
 	mainLayer:setCamera( self.camera )
+	physicsLayer:setCamera( self.camera )
 
 	local cameraFitter = MOAICameraFitter2D.new()	
 	cameraFitter:setViewport( mainLayer.viewport )
@@ -82,7 +111,7 @@ function Game:Update()
 	end
 	
 	-- dtreadgold: Update all enemies
-	for enemyIndex, enemy in ipairs(self.enemies) do
+	for enemyIndex, enemy in ipairs(self.world.enemies) do
 		enemy:Update()
 		
 		if enemy.dead then
@@ -90,12 +119,12 @@ function Game:Update()
 			self.player:AddPoints(enemy.enemyInfo.points)
 			
 			-- dtreadgold: If this is the last enemy then spawn the key
-			if #self.enemies == 1 then
+			if #self.world.enemies == 1 then
 				self:SpawnKey( {enemy.body:getPosition()} )
 			end
 
 			enemy:Destroy()
-			table.remove(self.enemies, enemyIndex)
+			table.remove(self.world.enemies, enemyIndex)
 		end
 	end
 	
@@ -147,20 +176,7 @@ end
 --
 --------------------------------------------------------------------------------
 function Game:ClearRoom()
-	for enemyIndex, enemy in ipairs(self.enemies) do
-		enemy.body:destroy()
-		self.layer:removeProp(enemy.prop)
-	end
-	self.enemies = {}
-	
-	for projectileIndex, projectile in ipairs(self.projectiles) do
-		projectile.body:destroy()
-		self.layer:removeProp(projectile.prop)
-	end
-	self.projectiles = {}
-	
-	self.world.enemies = self.enemies
-	self.world.projectiles = self.projectiles
+	self.world:Clear()
 end
 
 --------------------------------------------------------------------------------
@@ -272,15 +288,24 @@ function Game:CreateEnemy(pointsRemaining)
 	local layer = self.layer
 	
 	local potentialEnemies = {}
+	local maxPoints = 0
 	for enemyName, enemyInfo in pairs(Enemy.Types) do
 		if enemyInfo.points <= pointsRemaining then
 			table.insert(potentialEnemies, enemyInfo)
+			maxPoints = math.max(maxPoints, enemyInfo.points)
+		end
+	end
+	
+	-- dtreadgold: Make sure the list is only filled with enemys of max points
+	for enemyIndex, enemyInfo in ipairs(potentialEnemies) do
+		if enemyInfo.points < maxPoints then
+			table.remove(potentialEnemies, enemyIndex)
 		end
 	end
 
 	local enemyInfo = potentialEnemies[math.random(1, #potentialEnemies)]
 	local enemy = Enemy(self.world, enemyInfo)
-	table.insert(self.enemies, enemy)
+	table.insert(self.world.enemies, enemy)
 	
 	local tilePosition = 
 	{

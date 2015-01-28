@@ -1,14 +1,23 @@
 local EnemyRed = 
 {
-	fireType 			= "Radius",
-	numberOfProjectiles = 8,
-	fireRate			= 3,
-	randomOffset		= 10,
-	projectileDamage	= 8,
+	weapons =
+	{
+		{
+			fireType 			= "Spiral",
+			fireRate			= 0.4,
+			offsetStep			= 20,
+			projectileDamage	= 8,
+		},
+		{
+			fireType 			= "AtPlayer",
+			fireRate			= 0.8,
+			projectileDamage	= 1,
+		}
+	},
 	
 	health 				= 100,
 	maxMoveSpeed		= 40,
-	points				= 6,
+	points				= 11,
 	
 	textures = 
 	{

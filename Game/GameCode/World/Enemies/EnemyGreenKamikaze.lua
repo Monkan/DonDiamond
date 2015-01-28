@@ -1,11 +1,14 @@
 local EnemyGreen = 
 {
-	fireType 			= "AtPlayer",
-	fireRate			= 1,
-	projectileDamage	= 2,
+	weapons =
+	{
+		{
+			fireType 			= "Kamikaze"
+		}
+	},
 	
-	health 				= 20,
-	maxMoveSpeed		= 0,
+	health 				= 5,
+	maxMoveSpeed		= 250,
 	points				= 2,
 	
 	textures = 

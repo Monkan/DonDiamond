@@ -1,12 +1,17 @@
 local EnemyGreen = 
 {
-	fireType 			= "AtPlayer",
-	fireRate			= 1,
-	projectileDamage	= 2,
+	weapons =
+	{
+		{
+			fireType 			= "AtPlayer",
+			fireRate			= 0.8,
+			projectileDamage	= 5,
+		}
+	},
 	
-	health 				= 20,
+	health 				= 50,
 	maxMoveSpeed		= 120,
-	points				= 2,
+	points				= 7,
 	
 	textures = 
 	{

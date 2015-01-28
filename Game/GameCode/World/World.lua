@@ -71,4 +71,20 @@ function World:Update()
 	end
 end
 
+--------------------------------------------------------------------------------
+--
+--------------------------------------------------------------------------------
+function World:Clear()
+	for enemyIndex, enemy in ipairs(self.enemies) do
+		enemy:Destroy()
+		table.remove(self.enemies, enemyIndex)
+	end
+	
+	for projectileIndex, projectile in ipairs(self.projectiles) do
+		projectile:Deactivate()
+		self.objectPools.projectile:FreeObject(projectile)
+		table.remove(self.projectiles, projectileIndex)
+	end
+end
+
 return World

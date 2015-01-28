@@ -1,6 +1,7 @@
 local Projectile 		= require("World/Projectile")
 local TexturePacker 	= require("Util/TexturePacker")
 local CollisionFilters 	= require("World/CollisionFilters")
+local Weapon			= require("World/Weapon")
 
 local Enemy = Class()
 
@@ -9,20 +10,20 @@ local Enemy = Class()
 --------------------------------------------------------------------------------
 Enemy.Types = 
 {	
-	RedSmall	= require("World/Enemies/EnemyRedSmall"),
-	RedBig		= require("World/Enemies/EnemyRedBig"),
-	RedBoss		= require("World/Enemies/EnemyRedBoss"),
-	RedStatic	= require("World/Enemies/EnemyRedBoss"),
+	RedSmall		= require("World/Enemies/EnemyRedSmall"),
+	RedBig			= require("World/Enemies/EnemyRedBig"),
+	RedBoss			= require("World/Enemies/EnemyRedBoss"),
+	--RedKamikaze		= require("World/Enemies/EnemyRedKamikaze"),
 	
-	GreenSmall	= require("World/Enemies/EnemyGreenSmall"),
-	GreenBig	= require("World/Enemies/EnemyGreenBig"),
-	GreenBoss	= require("World/Enemies/EnemyGreenBoss"),
-	GreenStatic	= require("World/Enemies/EnemyGreenStatic"),
+	GreenSmall		= require("World/Enemies/EnemyGreenSmall"),
+	GreenBig		= require("World/Enemies/EnemyGreenBig"),
+	GreenBoss		= require("World/Enemies/EnemyGreenBoss"),
+	--GreenKamikaze	= require("World/Enemies/EnemyGreenKamikaze"),
 	
-	BlueSmall	= require("World/Enemies/EnemyBlueSmall"),
-	BlueBig		= require("World/Enemies/EnemyBlueBig"),
-	BlueBoss	= require("World/Enemies/EnemyBlueBoss"),
-	BlueStatic	= require("World/Enemies/EnemyBlueStatic"),
+	BlueSmall		= require("World/Enemies/EnemyBlueSmall"),
+	BlueBig			= require("World/Enemies/EnemyBlueBig"),
+	BlueBoss		= require("World/Enemies/EnemyBlueBoss"),
+	--BlueKamikaze	= require("World/Enemies/EnemyBlueKamikaze"),
 }
 
 --------------------------------------------------------------------------------
@@ -37,15 +38,6 @@ function Enemy:Constructor(world, enemyInfo)
 	
 	self.world = world
 	self:Initialise(world)
-	
-	local fireTimer = MOAITimer.new()
-	fireTimer:setSpan(enemyInfo.fireRate)
-	fireTimer:setMode(MOAITimer.LOOP)
-	fireTimer:setListener(MOAITimer.EVENT_TIMER_LOOP,
-		function()
-			self.canFire = true
-		end)
-	fireTimer:start()
 	
 	local rotateAmount = 10
 	self.spinDirection = math.random(-1, 1)
@@ -67,6 +59,39 @@ function Enemy:Constructor(world, enemyInfo)
 
 	self.spin(self.spinDirection * rotateAmount)
 	
+	if self.enemyInfo.weapons then
+		self.weapons = {}
+		for weaponIndex, weaponData in ipairs(self.enemyInfo.weapons) do
+			local weapon = Weapon(world, self, weaponData.projectileDamage)
+			table.copy(weaponData, weapon)
+			
+			if weapon.fireType == "Spiral" then
+				if weapon.direction then
+					weapon.fireStep = weapon.direction * 20
+				else
+					local spinDirection = math.random(0, 1)
+					if spinDirection == 0 then
+						weapon.fireStep = 20
+					else
+						weapon.fireStep = -20
+					end
+				end
+			end
+			
+			
+			local fireTimer = MOAITimer.new()
+			fireTimer:setSpan(weaponData.fireRate)
+			fireTimer:setMode(MOAITimer.LOOP)
+			fireTimer:setListener(MOAITimer.EVENT_TIMER_LOOP,
+				function()
+					weapon.canFire = true
+				end)
+			fireTimer:start()
+			weapon.fireTimer = fireTimer
+			
+			table.insert(self.weapons, weapon)
+		end
+	end
 end
 
 --------------------------------------------------------------------------------
@@ -282,10 +307,10 @@ function Enemy:Update()
 		
 	end
 	
-	if self.canFire then
-		self.canFire = false
-		self:Fire(directionToPlayer)
-		self:Blink()
+	for weaponIndex, weapon in ipairs(self.weapons) do
+		if weapon.canFire then
+			self:Fire()		
+		end
 	end
 	
 	--[[
@@ -300,43 +325,20 @@ end
 --------------------------------------------------------------------------------
 --
 --------------------------------------------------------------------------------
-function Enemy:Fire(directionToPlayer)
+function Enemy:Fire()
+	self:Blink()
 	
-	if self.enemyInfo.fireType == "Radius" then
-		self:FireRadius()
-	elseif self.enemyInfo.fireType == "AtPlayer" then
-		self:FireAtPlayer(directionToPlayer)
+	for weaponIndex, weapon in ipairs(self.weapons) do
+		if weapon.fireType == "Radius" then
+			weapon:FireRadius(weapon.numberOfProjectiles, weapon.randomOffset)
+		elseif weapon.fireType == "AtPlayer" then
+			weapon:FireAtTarget(self.world.player)
+		elseif weapon.fireType == "Spiral" then
+			weapon:FireSpiral(weapon.fireStep)
+		end
+		
+		weapon.canFire = false
 	end
-	
-end
-
---------------------------------------------------------------------------------
---
---------------------------------------------------------------------------------
-function Enemy:FireAtPlayer(directionToPlayer)
-	self.world:CreateProjectile(self, directionToPlayer, self.enemyInfo.projectileDamage)
-end
-
---------------------------------------------------------------------------------
---
---------------------------------------------------------------------------------
-function Enemy:FireRadius()
-	
-	local numProjectiles = self.enemyInfo.numberOfProjectiles
-	local angleStep = 360 / numProjectiles
-	
-	local startAngleOffset = 0
-	if self.enemyInfo.randomOffset > 0 then
-		startAngleOffset = math.random(0, (360 / self.enemyInfo.randomOffset) - 1) * self.enemyInfo.randomOffset
-	end
-	local direction = { 1, 0 }
-	direction = math.rotateVecAngle(direction, startAngleOffset)
-
-	for projectileIndex = 1, numProjectiles do
-		self.world:CreateProjectile(self, direction, self.enemyInfo.projectileDamage)		
-		direction = math.rotateVecAngle(direction, angleStep)
-	end
-	
 end
 
 --------------------------------------------------------------------------------

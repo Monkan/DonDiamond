@@ -28,7 +28,7 @@ function Projectile:Activate(owner, direction, damage)
 	self.faction = owner.faction
 	self.dead = false
 	
-	local lifeTime = 2
+	local lifeTime = 3
 	local lifeTimer = MOAITimer.new()
 	lifeTimer:setSpan(lifeTime)
 	lifeTimer:setListener(MOAITimer.EVENT_TIMER_END_SPAN,

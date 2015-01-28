@@ -64,7 +64,7 @@ function Key:Constructor(world, position)
 	self.layer = layer
 	self.physicsWorld = physicsWorld
 	
-	local rotateAmount = 10
+	local rotateAmount = 20
 	self.spinDirection = math.random(-1, 1)
 	if self.spinDirection <= 0 then
 		self.spinDirection = -1

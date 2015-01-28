@@ -3,6 +3,7 @@ local TexturePacker 	= require("Util/TexturePacker")
 local CollisionFilters 	= require("World/CollisionFilters")
 local Projectile 		= require("World/Projectile")
 local Particles 		= require("World/Particles")
+local Weapon			= require("World/Weapon")
 
 local Player = Class()
 
@@ -12,19 +13,22 @@ local Player = Class()
 function Player:Constructor(world)
 	self.world = world
 
-	self.initialHealth = 500
+	self.initialHealth = 50
 	self.health = self.initialHealth
-	self.faction = "Good"	
+	self.faction = "Good"
 	self.projectileDamage = 2
 
 	self.pointsPerLevel = 30
 	self.points = 0
 	
+	self.maxMoveSpeed = 250
+	self.maxLevel = 50
+	
 	self.controller = Controller(self)
 	self:Initialise(world)
 	
 	self.canFire = true
-	local fireRate = 0.35
+	local fireRate = 0.4
 	local fireTimer = MOAITimer.new()
 	fireTimer:setSpan(fireRate)
 	fireTimer:setMode(MOAITimer.LOOP)
@@ -60,6 +64,9 @@ function Player:Constructor(world)
 	
 	--self.particles = Particles(world, CONTENT_DIR .. "Particles/particle.pex")
 	--self.particles.system:setAttrLink(MOAITransform.INHERIT_TRANSFORM, self.prop, MOAITransform.TRANSFORM_TRAIT)
+	
+	self.weapon = Weapon(world, self, self.projectileDamage)
+	self.weapon2 = Weapon(world, self, self.projectileDamage)
 end
 
 --------------------------------------------------------------------------------
@@ -153,20 +160,33 @@ function Player:AddPoints(amount)
 	self.levelPoints = (self.points / self.pointsPerLevel) - newLevel
 	local minCrownScale = 0.3
 	local maxCrownScale = 0.8
-	local crownScale = ((self.levelPoints / self.pointsPerLevel) / (maxCrownScale - minCrownScale)) + minCrownScale
-	self.crownProp:setScl(crownScale)
+	-- dtreadgold: Get the scale in the range min and max scale
+	local crownScale = (self.levelPoints * (maxCrownScale - minCrownScale)) + minCrownScale
+	self.crownProp:seekScl(crownScale, crownScale, 1.0)
 end
 
 --------------------------------------------------------------------------------
 --
 --------------------------------------------------------------------------------
 function Player:LevelUp(newLevel)
-	self.prop:setScl(1 + ((newLevel + 1) / 100))
+	if newLevel > self.maxLevel then
+		-- dtreadgold: Only level up as far as max level
+		return
+	end
+
+	local levelScale = 1 + ((newLevel + 1) / self.maxLevel)
+	self.prop:seekScl(levelScale, levelScale, 1.0)
 	
 	self.health = math.min( self.health + (newLevel * 10), self.initialHealth )
 	if newLevel % 2 == 0 then
-		self.projectileDamage = self.projectileDamage + 1
+		self.projectileDamage = self.projectileDamage + 2
+	else
+		self.maxMoveSpeed = self.maxMoveSpeed + 50
 	end
+	
+	-- dtreadgold: Spin the crown on level up
+	local spinDirection = math.randomSign()
+	self.crownProp:moveRot(spinDirection * 360, 0.5)
 end
 
 
@@ -216,7 +236,7 @@ function Player:Update()
 	self.controller:Update()
 
 	local moveSpeed = 50
-	local maxMoveSpeed = 300
+	local maxMoveSpeed = self.maxMoveSpeed
 	
 	-- dtreadgold: Clamp the movement speed to max move speed
 	local velocity = { self.body:getLinearVelocity() }
@@ -236,14 +256,24 @@ function Player:Update()
 		local distance = math.length(moveVector)
 		moveVector = math.divVecScl(moveVector, distance)
 		
+		impuse[1] = moveSpeed * moveVector[1]
+		impuse[2] = moveSpeed * moveVector[2]
+		
 		local minDistance = 10
-		if distance > minDistance then
-			impuse[1] = moveSpeed * moveVector[1]
-			impuse[2] = moveSpeed * moveVector[2]
-		end		
+		if distance < minDistance then
+			self.controller.inputs.moveToX = nil
+			self.controller.inputs.moveToY = nil
+		end
 	end
 	
 	self.body:applyLinearImpulse(impuse[1], impuse[2])
+	
+	--[[
+	-- dtreadgold: Check if we should fire
+	if self.canFire then
+		self:Fire()
+	end
+	--]]
 	
 	--[[
 	if math.lengthSqrd(velocity) > 0 then
@@ -252,15 +282,14 @@ function Player:Update()
 	end
 	--]]
 	
+	---[[
 	self:FindTarget()
 
 	-- dtreadgold: Check if we should fire
 	if self.target and self.canFire then
-		local targetPosition = { self.target.body:getPosition() }
-		local fireDirection = math.subVec( targetPosition, { self.body:getPosition() } )
-		fireDirection = math.normalise(fireDirection)
-		self:Fire(fireDirection)
+		self:Fire()
 	end
+	--]]
 end
 
 --------------------------------------------------------------------------------
@@ -291,8 +320,17 @@ end
 --------------------------------------------------------------------------------
 --
 --------------------------------------------------------------------------------
-function Player:Fire(fireDirection)
-	self.world:CreateProjectile(self, fireDirection, self.projectileDamage)	
+function Player:Fire()
+	self.weapon:FireAtTarget(self.target)
+	--self.weapon:FireSpiral(20)
+	--self.weapon2:FireSpiral(-20)
+	--self.weapon:FireForward()
+	--self.weapon:FireBackward()
+	
+	--self.weapon:FireUp()
+	--self.weapon:FireDown()
+
+	
 	self.canFire = false
 	
 	-- dtreadgold: Stop and start the timer again to make sure we can't fire too soon
