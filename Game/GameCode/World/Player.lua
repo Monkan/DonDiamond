@@ -22,13 +22,13 @@ function Player:Constructor(world)
 	self.points = 0
 	
 	self.maxMoveSpeed = 250
-	self.maxLevel = 50
+	self.maxLevel = 30
 	
 	self.controller = Controller(self)
 	self:Initialise(world)
 	
 	self.canFire = true
-	local fireRate = 0.4
+	local fireRate = 0.2
 	local fireTimer = MOAITimer.new()
 	fireTimer:setSpan(fireRate)
 	fireTimer:setMode(MOAITimer.LOOP)

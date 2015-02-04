@@ -30,14 +30,40 @@ Enemy.Types =
 -- Constructor
 --------------------------------------------------------------------------------
 function Enemy:Constructor(world, enemyInfo)
-	self.state = "Attacking"
-	self.health = enemyInfo.health
-	self.faction = "Bad"
-	self.enemyInfo = enemyInfo
-	self.blinkInterval = { min = 2, max = 5 }
-	
 	self.world = world
-	self:Initialise(world)
+	self.faction = "Bad"
+	
+	local deck, names = TexturePacker:Load(GRAPHICS_DIR .. "enemies.lua", GRAPHICS_DIR .. "enemies.png")
+	deck.names = names
+	self.prop = MOAIProp2D.new()
+	self.prop:setDeck ( deck )
+	self.prop.deck = deck
+	
+	-- dtreadgold: Add the prop for the eye
+	self.blinkInterval = { min = 2, max = 5 }
+	self.eyeProp = MOAIProp2D.new()
+	self.eyeProp:setDeck ( deck )
+	self.eyeProp.deck = deck
+	self.eyeProp:setLoc(0, 0)
+	self.eyeProp:setAttrLink(MOAITransform.INHERIT_TRANSFORM, self.prop, MOAITransform.TRANSFORM_TRAIT)
+	if math.random(2) == 1 then
+		self.blinkImages =
+		{
+			"horizontaleye1.png",
+			"horizontaleye2.png",
+			"horizontaleye3.png"
+		}
+	else
+		self.blinkImages =
+		{
+			"verticaleye1.png",
+			"verticaleye2.png",
+			"verticaleye3.png"
+		}
+	end
+	
+	self.blinkIndex = 1
+	self.eyeProp:setIndex( deck.names[self.blinkImages[self.blinkIndex]] )
 	
 	local rotateAmount = 10
 	self.spinDirection = math.random(-1, 1)
@@ -58,11 +84,72 @@ function Enemy:Constructor(world, enemyInfo)
 	end
 
 	self.spin(self.spinDirection * rotateAmount)
+end
+
+--------------------------------------------------------------------------------
+--
+--------------------------------------------------------------------------------
+function Enemy:CreatePhysics(physicsWorld)
+	local bodyType = MOAIBox2DBody.DYNAMIC
+	local worldBody = physicsWorld:addBody ( bodyType )
+	--local fixture = worldBody:addCircle( 0, 0, size[1] / 2 )
+	local fixture = worldBody:addRect( -self.size[1] / 2, -self.size[2] / 2, self.size[1] / 2, self.size[2] / 2 )
+	fixture:setFilter( CollisionFilters.Category.Enemy, CollisionFilters.Mask.Enemy )
 	
-	if self.enemyInfo.weapons then
+	function onCollide( event, fixtureA, fixtureB, arbiter )
+		local bodyA = fixtureA:getBody()
+		local bodyB = fixtureB:getBody()
+
+		local objectA = bodyA.owner
+		local objectB = bodyB.owner
+
+		if event == MOAIBox2DArbiter.BEGIN then
+			if objectA == self and objectB and objectB.owner and objectB.owner.faction ~= self.faction then
+				-- If we have collided with something that does damage
+				if objectB.damage then
+					self:ReduceHealth(objectB.damage)
+				end
+			end
+		end
+	end
+	fixture:setCollisionHandler( onCollide, MOAIBox2DArbiter.BEGIN + MOAIBox2DArbiter.END )
+	
+	self.prop:setAttrLink(MOAITransform.INHERIT_TRANSFORM, worldBody, MOAITransform.TRANSFORM_TRAIT)
+	worldBody.owner = self
+
+	self.body = worldBody
+	self.body:setLinearDamping(3)
+	self.body:resetMassData()
+end
+
+--------------------------------------------------------------------------------
+--
+--------------------------------------------------------------------------------
+function Enemy:Activate(position, enemyInfo)
+	self.state = "Attacking"
+	table.copy(enemyInfo, self)
+	self.maxHealth = self.health
+	self.dead = false
+
+	local layer = self.world.layer
+	local physicsWorld = self.world.physicsWorld
+	
+	-- dtreadgold: Set up prop and physics
+	self.size = { 80, 60 }
+	self.size[1] = self.size[1] * self.scale
+	self.size[2] = self.size[2] * self.scale
+	self.prop:setIndex( self.prop.deck.names[self.textures[4]] )
+	
+	self.prop:setScl(self.scale)
+	layer:insertProp( self.prop )
+	layer:insertProp( self.eyeProp )
+	
+	self:CreatePhysics(physicsWorld)
+	
+	if enemyInfo.weapons then
 		self.weapons = {}
-		for weaponIndex, weaponData in ipairs(self.enemyInfo.weapons) do
-			local weapon = Weapon(world, self, weaponData.projectileDamage)
+		for weaponIndex, weaponData in ipairs(enemyInfo.weapons) do
+			local weapon = Weapon(self.world, self, weaponData.projectileDamage)
 			table.copy(weaponData, weapon)
 			
 			if weapon.fireType == "Spiral" then
@@ -92,96 +179,21 @@ function Enemy:Constructor(world, enemyInfo)
 			table.insert(self.weapons, weapon)
 		end
 	end
+	
+	self.body:setTransform(position[1], position[2], 0)
 end
 
 --------------------------------------------------------------------------------
 --
 --------------------------------------------------------------------------------
-function Enemy:Initialise(world)
+function Enemy:Deactivate()
+	local world = self.world
 	local layer = world.layer
-	local physicsWorld = world.physicsWorld
-	
-	-- dtreadgold: Set up prop and physics
-	local deck, names = TexturePacker:Load(GRAPHICS_DIR .. "enemies.lua", GRAPHICS_DIR .. "enemies.png")
-	deck.names = names
 
-	local size = { 80, 60 }
-	size[1] = size[1] * self.enemyInfo.scale
-	size[2] = size[2] * self.enemyInfo.scale
-
-	self.prop = MOAIProp2D.new()
-	self.prop:setDeck ( deck )
-	self.prop:setIndex( deck.names[self.enemyInfo.textures[4]] )
-	self.prop.deck = deck
-	self.prop:setScl(self.enemyInfo.scale)
-	layer:insertProp( self.prop )
-	
-	-- dtreadgold: Add the prop for the eye
-	self.eyeProp = MOAIProp2D.new()
-	self.eyeProp:setDeck ( deck )
-	self.eyeProp.deck = deck
-	layer:insertProp ( self.eyeProp )
-	self.eyeProp:setLoc(0, 0)
-	self.eyeProp:setAttrLink(MOAITransform.INHERIT_TRANSFORM, self.prop, MOAITransform.TRANSFORM_TRAIT)
-	if math.random(2) == 1 then
-		self.blinkImages =
-		{
-			"horizontaleye1.png",
-			"horizontaleye2.png",
-			"horizontaleye3.png"
-		}
-	else
-		self.blinkImages =
-		{
-			"verticaleye1.png",
-			"verticaleye2.png",
-			"verticaleye3.png"
-		}
-	end
-	
-	self.blinkIndex = 1
-	self.eyeProp:setIndex( deck.names[self.blinkImages[self.blinkIndex]] )
-	--self:StartNextBlinkTimer()
-	
-	local bodyType = MOAIBox2DBody.DYNAMIC
-	if self.enemyInfo.maxMoveSpeed > 0 then
-		bodyType = MOAIBox2DBody.DYNAMIC
-	else
-		bodyType = MOAIBox2DBody.STATIC
-	end
-
-	local worldBody = physicsWorld:addBody ( bodyType )
-	--local fixture = worldBody:addCircle( 0, 0, size[1] / 2 )
-	local fixture = worldBody:addRect( -size[1] / 2, -size[2] / 2, size[1] / 2, size[2] / 2 )
-	fixture:setFilter( CollisionFilters.Category.Enemy, CollisionFilters.Mask.Enemy )
-	
-	function onCollide( event, fixtureA, fixtureB, arbiter )
-		local bodyA = fixtureA:getBody()
-		local bodyB = fixtureB:getBody()
-
-		local objectA = bodyA.owner
-		local objectB = bodyB.owner
-
-		if event == MOAIBox2DArbiter.BEGIN then
-			if objectA == self and objectB and objectB.owner and objectB.owner.faction ~= self.faction then
-				-- If we have collided with something that does damage
-				if objectB.damage then
-					self:ReduceHealth(objectB.damage)
-				end
-			end
-		end
-	end
-	fixture:setCollisionHandler( onCollide, MOAIBox2DArbiter.BEGIN + MOAIBox2DArbiter.END )
-	
-	self.prop:setAttrLink(MOAITransform.INHERIT_TRANSFORM, worldBody, MOAITransform.TRANSFORM_TRAIT)
-	worldBody.owner = self
-
-	self.body = worldBody
-	self.body:setLinearDamping(3)
-	self.body:resetMassData()
-	
-	self.layer = layer
-	self.physicsWorld = physicsWorld
+	self.body:destroy()
+	self.body = nil
+	layer:removeProp(self.prop)
+	layer:removeProp(self.eyeProp)
 end
 
 --------------------------------------------------------------------------------
@@ -194,15 +206,15 @@ function Enemy:ReduceHealth(amount)
 	end
 	
 	-- dtreadgold: Set the correct image for the damage amount
-	local healthProportion = self.health / self.enemyInfo.health
+	local healthProportion = self.health / self.maxHealth
 	if healthProportion < 0.25 then
-		self.prop:setIndex( self.prop.deck.names[self.enemyInfo.textures[1]] )
+		self.prop:setIndex( self.prop.deck.names[self.textures[1]] )
 	elseif healthProportion < 0.5 then
-		self.prop:setIndex( self.prop.deck.names[self.enemyInfo.textures[2]] )
+		self.prop:setIndex( self.prop.deck.names[self.textures[2]] )
 	elseif healthProportion < 0.75 then
-		self.prop:setIndex( self.prop.deck.names[self.enemyInfo.textures[3]] )
+		self.prop:setIndex( self.prop.deck.names[self.textures[3]] )
 	else
-		self.prop:setIndex( self.prop.deck.names[self.enemyInfo.textures[4]] )
+		self.prop:setIndex( self.prop.deck.names[self.textures[4]] )
 	end
 end
 
@@ -257,7 +269,7 @@ function Enemy:Update()
 
 	local moveSpeed = 20
 	local minDistanceFromPlayer = 200
-	local maxMoveSpeed = self.enemyInfo.maxMoveSpeed
+	local maxMoveSpeed = self.maxMoveSpeed
 	
 	local position = { self.body:getPosition() }
 	local playerPosition = { player.body:getPosition() }
@@ -345,9 +357,7 @@ end
 --
 --------------------------------------------------------------------------------
 function Enemy:Destroy()
-	self.body:destroy()
-	self.world.layer:removeProp(self.prop)
-	self.world.layer:removeProp(self.eyeProp)
+	self:Deactivate()
 end
 
 

@@ -22,7 +22,7 @@ function World:Constructor(mainLayer, physicsWorld)
 	
 	self.objectPools = {}
 	self.objectPools.projectile = ObjectPool(self, Projectile, 100)
-	--self.objectPools.enemy = ObjectPool(self, Enemy, 10)
+	self.objectPools.enemy = ObjectPool(self, Enemy, 10)
 end
 
 --------------------------------------------------------------------------------
@@ -51,9 +51,9 @@ end
 --------------------------------------------------------------------------------
 --
 --------------------------------------------------------------------------------
-function World:CreateEnemy(position, enemyType)
+function World:CreateEnemy(position, enemyInfo)
 	local enemy = self.objectPools.enemy:GetFreeObject()
-	enemy:Activate(position, enemyType)
+	enemy:Activate(position, enemyInfo)
 	table.insert(self.enemies, enemy)
 end
 
@@ -76,15 +76,16 @@ end
 --------------------------------------------------------------------------------
 function World:Clear()
 	for enemyIndex, enemy in ipairs(self.enemies) do
-		enemy:Destroy()
-		table.remove(self.enemies, enemyIndex)
+		enemy:Deactivate()
+		self.objectPools.enemy:FreeObject(enemy)
 	end
+	self.enemies = {}
 	
 	for projectileIndex, projectile in ipairs(self.projectiles) do
 		projectile:Deactivate()
 		self.objectPools.projectile:FreeObject(projectile)
-		table.remove(self.projectiles, projectileIndex)
 	end
+	self.projectiles = {}
 end
 
 return World

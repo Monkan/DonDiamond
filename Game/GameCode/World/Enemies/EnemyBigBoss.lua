@@ -32,7 +32,7 @@ local Enemy =
 	
 	health 				= 500,
 	maxMoveSpeed		= 20,
-	points				= 19,
+	points				= 25,
 	
 	textures = 
 	{

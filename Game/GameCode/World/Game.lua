@@ -17,7 +17,12 @@ local RoomDimensionsTiles = { math.ceil(RoomDimensionsWorld[1] / TileDimensions[
 -- Constructor
 --------------------------------------------------------------------------------
 function Game:Constructor()
-	
+
+--[[
+	MOAISim.setHistogramEnabled(true)
+	MOAISim.setLeakTrackingEnabled(true)
+--]]
+
 	math.randomseed(MOAISim.getDeviceTime())
 
 	local screenWidth = MOAIEnvironment.horizontalResolution or 360
@@ -54,8 +59,6 @@ function Game:Constructor()
 	self.physicsWorld = physicsWorld
 	
 	self.world = World(mainLayer, physicsWorld)
-
-	self.projectiles = self.world.projectiles
 	self.rooms = self.world.rooms
 
 	-- dtreadgold: Set up camera
@@ -104,6 +107,7 @@ end
 --
 --------------------------------------------------------------------------------
 function Game:Update()
+	print(MOAISim.getPerformance())
 	self.world:Update()
 	self.player:Update()
 	if self.player.dead then
@@ -116,14 +120,15 @@ function Game:Update()
 		
 		if enemy.dead then
 			-- dtreadgold: Add the points to the player
-			self.player:AddPoints(enemy.enemyInfo.points)
+			self.player:AddPoints(enemy.points)
 			
 			-- dtreadgold: If this is the last enemy then spawn the key
 			if #self.world.enemies == 1 then
 				self:SpawnKey( {enemy.body:getPosition()} )
 			end
 
-			enemy:Destroy()
+			enemy:Deactivate()
+			self.world.objectPools.enemy:FreeObject(enemy)
 			table.remove(self.world.enemies, enemyIndex)
 		end
 	end
@@ -148,15 +153,15 @@ end
 --------------------------------------------------------------------------------
 --
 --------------------------------------------------------------------------------
-function Game:RoomFinished()
-	self:OpenDoors()
+function Game:SpawnKey(position)
+	self.key = Key(self, position)
 end
 
 --------------------------------------------------------------------------------
 --
 --------------------------------------------------------------------------------
-function Game:SpawnKey(position)
-	self.key = Key(self.world, position)
+function Game:RoomFinished()
+	self:OpenDoors()
 end
 
 --------------------------------------------------------------------------------
@@ -177,6 +182,13 @@ end
 --------------------------------------------------------------------------------
 function Game:ClearRoom()
 	self.world:Clear()
+	
+	--[[
+	MOAISim.reportHistogram()
+	MOAISim.reportLeaks()
+	--]]
+	
+	MOAISim.forceGC()
 end
 
 --------------------------------------------------------------------------------
@@ -297,16 +309,13 @@ function Game:CreateEnemy(pointsRemaining)
 	end
 	
 	-- dtreadgold: Make sure the list is only filled with enemys of max points
+	local enemies = {}
 	for enemyIndex, enemyInfo in ipairs(potentialEnemies) do
-		if enemyInfo.points < maxPoints then
-			table.remove(potentialEnemies, enemyIndex)
+		if enemyInfo.points == maxPoints then
+			table.insert(enemies, enemyInfo)
 		end
 	end
 
-	local enemyInfo = potentialEnemies[math.random(1, #potentialEnemies)]
-	local enemy = Enemy(self.world, enemyInfo)
-	table.insert(self.world.enemies, enemy)
-	
 	local tilePosition = 
 	{
 		math.random( 3, RoomDimensionsTiles[1] - 3 ),
@@ -318,7 +327,9 @@ function Game:CreateEnemy(pointsRemaining)
 	tilePosition[2] = tilePosition[2] + (tilePosition[2] % 2)
 
 	local position = self:TileToWorldPosition(tilePosition)
-	enemy.body:setTransform(position[1], position[2], 0)
+	
+	local enemyInfo = enemies[math.random(1, #enemies)]	
+	local enemy = self.world:CreateEnemy(position, enemyInfo)
 	
 	return pointsRemaining - enemyInfo.points
 end

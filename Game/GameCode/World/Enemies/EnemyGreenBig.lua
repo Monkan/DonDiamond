@@ -11,7 +11,7 @@ local EnemyGreen =
 	
 	health 				= 50,
 	maxMoveSpeed		= 120,
-	points				= 7,
+	points				= 9,
 	
 	textures = 
 	{
