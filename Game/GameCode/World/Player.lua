@@ -4,6 +4,7 @@ local CollisionFilters 	= require("World/CollisionFilters")
 local Projectile 		= require("World/Projectile")
 local Particles 		= require("World/Particles")
 local Weapon			= require("World/Weapon")
+local Utils				= require("Util/Utils")
 
 local Player = Class()
 
@@ -16,31 +17,47 @@ function Player:Constructor(world)
 	self.initialHealth = 50
 	self.health = self.initialHealth
 	self.faction = "Good"
-	self.projectileDamage = 2
+	self.projectileDamage = 5
+	self.startingScale = 1.0
+	self.maxScale = 1.0
 
-	self.pointsPerLevel = 30
+	self.pointsPerLevel = 50
 	self.points = 0
 	
-	self.maxMoveSpeed = 250
-	self.maxLevel = 30
+	self.moveSpeed = 50
+	self.initialMaxMoveSpeed = 250
+	self.maxMoveSpeed = self.initialMaxMoveSpeed
+	self.boostSpeedScaler = 1.5
+	self.maxLevel = 20
+	
+	local boostTime = 0.5
+	local boostCooldown = 1.0
+	local fireRate = 0.4
 	
 	self.controller = Controller(self)
 	self:Initialise(world)
 	
 	self.canFire = true
-	local fireRate = 0.2
-	local fireTimer = MOAITimer.new()
-	fireTimer:setSpan(fireRate)
-	fireTimer:setMode(MOAITimer.LOOP)
-	fireTimer:setListener(MOAITimer.EVENT_TIMER_LOOP,
-		function()
-			self.canFire = true
-		end)
-	fireTimer:start()
+	local fireCallback = function()
+		self.canFire = true
+	end
+	self.fireTimer = Utils:Timer(fireRate, MOAITimer.EVENT_TIMER_LOOP, fireCallback)
+	self.fireTimer:setMode(MOAITimer.LOOP)
+	self.fireTimer:start()
 	
-	self.fireTimer = fireTimer
+	self.canBoost = true
+	local boostCallback = function()
+		self.moveSpeed = self.moveSpeed / self.boostSpeedScaler
+		self.maxMoveSpeed = self.maxMoveSpeed / self.boostSpeedScaler
+	end
+	self.boostTimer = Utils:Timer(boostTime, MOAITimer.EVENT_TIMER_END_SPAN, boostCallback)
 	
-	-- dtreadgold: Jiggle the prop
+	local boostCooldownCallback = function() 
+		self.canBoost = true 
+	end
+	self.boostCooldownTimer = Utils:Timer(boostCooldown, MOAITimer.EVENT_TIMER_END_SPAN, boostCooldownCallback)
+	
+	-- Jiggle the prop
 	local rotateAmount = 5
 	self.spinDirection = math.random(-1, 1)
 	if self.spinDirection <= 0 then
@@ -76,7 +93,7 @@ function Player:Initialise(world)
 	local layer = world.layer
 	local physicsWorld = world.physicsWorld
 
-	-- dtreadgold: Set up player
+	-- Set up player
 	local deck, names = TexturePacker:Load(GRAPHICS_DIR .. "player.lua", GRAPHICS_DIR .. "player.png")
 	deck.names = names
 
@@ -121,7 +138,7 @@ function Player:Initialise(world)
 	self.body = worldBody
 	self.body:setLinearDamping(3)
 	
-	-- dtreadgold: Add the prop for the mouth
+	-- Add the prop for the mouth
 	self.mouthProp = MOAIProp2D.new()
 	self.mouthProp:setDeck ( deck )
 	self.mouthProp.deck = deck
@@ -131,7 +148,7 @@ function Player:Initialise(world)
 	
 	self:SetMood("Happy")
 	
-	-- dtreadgold: Add the prop for the crown
+	-- Add the prop for the crown
 	self.crownProp = MOAIProp2D.new()
 	self.crownProp:setDeck ( deck )
 	self.crownProp:setIndex( deck.names["crown.png"] )
@@ -141,6 +158,8 @@ function Player:Initialise(world)
 	self:AddPoints(0)
 	
 	self.crownProp:setAttrLink(MOAITransform.INHERIT_TRANSFORM, self.prop, MOAITransform.TRANSFORM_TRAIT)
+	
+	self.prop:setScl(self.startingScale, self.startingScale)
 
 end
 
@@ -148,19 +167,24 @@ end
 --
 --------------------------------------------------------------------------------
 function Player:AddPoints(amount)
-	local oldLevel = math.floor(self.points / self.pointsPerLevel)
+	local currentLevel = math.floor(self.points / self.pointsPerLevel)
 	self.points = self.points + amount
 	
+	if currentLevel >= self.maxLevel then
+		-- Only level up as far as max level
+		return
+	end
+	
 	local newLevel = math.floor(self.points / self.pointsPerLevel)
-	if newLevel > oldLevel then
+	if newLevel > currentLevel then
 		self:LevelUp(newLevel)
 	end
 
-	-- dtreadgold: Get the amount of points for this level to use as a scale for the crown
+	-- Get the amount of points for this level to use as a scale for the crown
 	self.levelPoints = (self.points / self.pointsPerLevel) - newLevel
 	local minCrownScale = 0.3
 	local maxCrownScale = 0.8
-	-- dtreadgold: Get the scale in the range min and max scale
+	-- Get the scale in the range min and max scale
 	local crownScale = (self.levelPoints * (maxCrownScale - minCrownScale)) + minCrownScale
 	self.crownProp:seekScl(crownScale, crownScale, 1.0)
 end
@@ -170,23 +194,30 @@ end
 --------------------------------------------------------------------------------
 function Player:LevelUp(newLevel)
 	if newLevel > self.maxLevel then
-		-- dtreadgold: Only level up as far as max level
+		-- Only level up as far as max level
 		return
 	end
 
-	local levelScale = 1 + ((newLevel + 1) / self.maxLevel)
+	local levelScale = self.startingScale + ((newLevel + 1) / self.maxLevel)
+	levelScale = math.min(levelScale, self.maxScale)
 	self.prop:seekScl(levelScale, levelScale, 1.0)
-	
-	self.health = math.min( self.health + (newLevel * 10), self.initialHealth )
+
 	if newLevel % 2 == 0 then
 		self.projectileDamage = self.projectileDamage + 2
 	else
 		self.maxMoveSpeed = self.maxMoveSpeed + 50
 	end
 	
-	-- dtreadgold: Spin the crown on level up
+	-- Spin the crown on level up
 	local spinDirection = math.randomSign()
 	self.crownProp:moveRot(spinDirection * 360, 0.5)
+end
+
+--------------------------------------------------------------------------------
+--
+--------------------------------------------------------------------------------
+function Player:AddHealth(amount)
+	self.health = math.min( self.health + amount, self.initialHealth )
 end
 
 
@@ -208,7 +239,7 @@ function Player:SetMood(mood)
 		local mouthImage = sadImages[math.random(1, #sadImages)]
 		self.mouthProp:setIndex(self.mouthProp.deck.names[mouthImage])
 		
-		-- dtreadgold: Mouth changing timer
+		-- Mouth changing timer
 		self.moodTimer = MOAITimer.new()
 		self.moodTimer:setSpan(0.5)
 		self.moodTimer:setListener(MOAITimer.EVENT_TIMER_END_SPAN,
@@ -235,10 +266,18 @@ function Player:Update()
 
 	self.controller:Update()
 
-	local moveSpeed = 50
+	if self.controller.inputs.boost then
+		if self.canBoost then
+			self:Boost()
+		else
+			self.controller.inputs.boost = false
+		end
+	end
+
+	local moveSpeed = self.moveSpeed
 	local maxMoveSpeed = self.maxMoveSpeed
 	
-	-- dtreadgold: Clamp the movement speed to max move speed
+	-- Clamp the movement speed to max move speed
 	local velocity = { self.body:getLinearVelocity() }
 	if math.lengthSqrd(velocity) > maxMoveSpeed * maxMoveSpeed then
 		velocity = math.normalise(velocity)
@@ -249,7 +288,7 @@ function Player:Update()
 	
 	local impuse = { 0, 0 }
 	if self.controller.inputs.moveToX and self.controller.inputs.moveToY then
-		-- dtreadgold: Move in the direction of the moveTo
+		-- Move in the direction of the moveTo
 		local moveTo = { self.controller.inputs.moveToX, self.controller.inputs.moveToY }
 		local position = { self.body:getPosition() }
 		local moveVector = math.subVec( moveTo, position )
@@ -269,7 +308,7 @@ function Player:Update()
 	self.body:applyLinearImpulse(impuse[1], impuse[2])
 	
 	--[[
-	-- dtreadgold: Check if we should fire
+	-- Check if we should fire
 	if self.canFire then
 		self:Fire()
 	end
@@ -285,7 +324,7 @@ function Player:Update()
 	---[[
 	self:FindTarget()
 
-	-- dtreadgold: Check if we should fire
+	-- Check if we should fire
 	if self.target and self.canFire then
 		self:Fire()
 	end
@@ -295,10 +334,22 @@ end
 --------------------------------------------------------------------------------
 --
 --------------------------------------------------------------------------------
+function Player:Boost()
+	self.controller.inputs.boost = false
+	self.moveSpeed = self.moveSpeed * self.boostSpeedScaler
+	self.maxMoveSpeed = self.maxMoveSpeed * self.boostSpeedScaler
+	self.canBoost = false
+	self.boostTimer:start()
+	self.boostCooldownTimer:start()
+end
+
+--------------------------------------------------------------------------------
+--
+--------------------------------------------------------------------------------
 function Player:FindTarget()	
 	self.target = nil
 
-	-- dtreadgold: Find the closest enemy to fire at
+	-- Find the closest enemy to fire at
 	local position = { self.body:getPosition() }
 	local closestEnemy = nil
 	local closestDistanceSqrd = nil
@@ -333,7 +384,7 @@ function Player:Fire()
 	
 	self.canFire = false
 	
-	-- dtreadgold: Stop and start the timer again to make sure we can't fire too soon
+	-- Stop and start the timer again to make sure we can't fire too soon
 	self.fireTimer:stop()
 	self.fireTimer:start()
 end

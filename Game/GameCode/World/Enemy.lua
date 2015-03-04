@@ -39,7 +39,7 @@ function Enemy:Constructor(world, enemyInfo)
 	self.prop:setDeck ( deck )
 	self.prop.deck = deck
 	
-	-- dtreadgold: Add the prop for the eye
+	-- Add the prop for the eye
 	self.blinkInterval = { min = 2, max = 5 }
 	self.eyeProp = MOAIProp2D.new()
 	self.eyeProp:setDeck ( deck )
@@ -134,11 +134,14 @@ function Enemy:Activate(position, enemyInfo)
 	local layer = self.world.layer
 	local physicsWorld = self.world.physicsWorld
 	
-	-- dtreadgold: Set up prop and physics
+	-- Set up prop and physics
 	self.size = { 80, 60 }
 	self.size[1] = self.size[1] * self.scale
 	self.size[2] = self.size[2] * self.scale
 	self.prop:setIndex( self.prop.deck.names[self.textures[4]] )
+	
+	self.blinkIndex = 1
+	self.eyeProp:setIndex( self.prop.deck.names[self.blinkImages[self.blinkIndex]] )
 	
 	self.prop:setScl(self.scale)
 	layer:insertProp( self.prop )
@@ -189,6 +192,14 @@ end
 function Enemy:Deactivate()
 	local world = self.world
 	local layer = world.layer
+	
+	for weaponIndex, weapon in ipairs(self.weapons) do
+		weapon.fireTimer:stop()
+	end
+	
+	if self.blinkTimer then
+		self.blinkTimer:stop()
+	end
 
 	self.body:destroy()
 	self.body = nil
@@ -205,7 +216,7 @@ function Enemy:ReduceHealth(amount)
 		self.dead = true
 	end
 	
-	-- dtreadgold: Set the correct image for the damage amount
+	-- Set the correct image for the damage amount
 	local healthProportion = self.health / self.maxHealth
 	if healthProportion < 0.25 then
 		self.prop:setIndex( self.prop.deck.names[self.textures[1]] )
@@ -270,6 +281,7 @@ function Enemy:Update()
 	local moveSpeed = 20
 	local minDistanceFromPlayer = 200
 	local maxMoveSpeed = self.maxMoveSpeed
+	local minSeparationDistance = 100
 	
 	local position = { self.body:getPosition() }
 	local playerPosition = { player.body:getPosition() }
@@ -279,7 +291,7 @@ function Enemy:Update()
 	
 	if maxMoveSpeed > 0 then
 		
-		-- dtreadgold: Clamp the movement speed to max move speed
+		-- Clamp the movement speed to max move speed
 		local velocity = { self.body:getLinearVelocity() }
 		if math.lengthSqrd(velocity) > maxMoveSpeed * maxMoveSpeed then
 			velocity = math.normalise(velocity)
@@ -288,6 +300,7 @@ function Enemy:Update()
 			self.body:setLinearVelocity(unpack(velocity))
 		end
 
+		-- Apply movement impuse
 		local impuse = { 0, 0 }		
 		if self.state == "Attacking" then
 
@@ -317,6 +330,23 @@ function Enemy:Update()
 
 		self.body:applyLinearImpulse(impuse[1], impuse[2])
 		
+		-- Apply separation to make sure the enemies don't bunch up too much
+		local separationImpuse = { 0, 0 }		
+		for enemyIndex, enemy in ipairs(self.world.enemies) do
+			if enemy ~= self then
+				local enemyPosition = { enemy.body:getPosition() }
+				local directionToEnemy = math.subVec(enemyPosition, position)
+				local distanceToEnemySqrd = math.lengthSqrd(directionToEnemy)
+
+				if distanceToEnemySqrd < minSeparationDistance * minSeparationDistance then
+					directionToEnemy = math.normalise(directionToEnemy)	
+					separationImpuse = math.addVec(separationImpuse, math.mulVecScl(directionToEnemy, -moveSpeed / 2))
+				end
+			end
+		end
+		
+		self.body:applyLinearImpulse(separationImpuse[1], separationImpuse[2])
+		
 	end
 	
 	for weaponIndex, weapon in ipairs(self.weapons) do
@@ -324,14 +354,6 @@ function Enemy:Update()
 			self:Fire()		
 		end
 	end
-	
-	--[[
-	if math.lengthSqrd(velocity) > 0 then
-		local position = { self.body:getPosition() }
-		self.body:setTransform( position[1], position[2], math.deg(math.atan2(velocity[2], velocity[1])) + 90 )
-	end
-	--]]
-
 end
 
 --------------------------------------------------------------------------------

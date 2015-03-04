@@ -5,7 +5,7 @@ local Player			= require("World/Player")
 local Enemy				= require("World/Enemy")
 local CollisionFilters 	= require("World/CollisionFilters")
 local World				= require("World/World")
-local Key				= require("World/Key")
+local SpawnList			= require("World/SpawnList")
 
 local Game = Class()
 
@@ -39,7 +39,7 @@ function Game:Constructor()
 	mainLayer.viewport = viewport
 	MOAISim.pushRenderPass( mainLayer )
 
-	-- dtreadgold: Set up box2d world
+	-- Set up box2d world
 	local physicsWorld = MOAIBox2DWorld.new()
 	--physicsWorld:setDebugDrawEnabled(true)
 	physicsWorld:setDebugDrawEnabled(false)
@@ -58,10 +58,13 @@ function Game:Constructor()
 	self.layer = mainLayer
 	self.physicsWorld = physicsWorld
 	
+	self:CreateBackground()
+	self:CreateRoomGrid()
+	
 	self.world = World(mainLayer, physicsWorld)
 	self.rooms = self.world.rooms
 
-	-- dtreadgold: Set up camera
+	-- Set up camera
 	self.camera = MOAICamera2D.new()
 	mainLayer:setCamera( self.camera )
 	physicsLayer:setCamera( self.camera )
@@ -72,16 +75,10 @@ function Game:Constructor()
 	cameraFitter:start()
 	self.camera.fitter = cameraFitter
 	
-	self:CreateBackground()
-	self:CreateRoomGrid()
-	
-	self.player = Player(self.world)
-	self.world.player = self.player
-	
-	-- dtreadgold: Set up the first room
+	-- Set up the first room
 	self:MoveToRoom()
 	
-	-- dtreadgold: Add an anchor for the camera
+	-- Add an anchor for the camera
 	local anchor = MOAICameraAnchor2D.new()
 	anchor:setParent(self.roomGrid)
 	anchor:setRect(-RoomDimensionsWorld[1] / 2, -RoomDimensionsWorld[2] / 2, RoomDimensionsWorld[1] / 2, RoomDimensionsWorld[2] / 2)
@@ -107,54 +104,21 @@ end
 --
 --------------------------------------------------------------------------------
 function Game:Update()
-	print(MOAISim.getPerformance())
+	--print(MOAISim.getPerformance())
 	self.world:Update()
-	self.player:Update()
-	if self.player.dead then
+	if self.world.player.dead then
 		self:Restart()
-	end
-	
-	-- dtreadgold: Update all enemies
-	for enemyIndex, enemy in ipairs(self.world.enemies) do
-		enemy:Update()
-		
-		if enemy.dead then
-			-- dtreadgold: Add the points to the player
-			self.player:AddPoints(enemy.points)
-			
-			-- dtreadgold: If this is the last enemy then spawn the key
-			if #self.world.enemies == 1 then
-				self:SpawnKey( {enemy.body:getPosition()} )
-			end
-
-			enemy:Deactivate()
-			self.world.objectPools.enemy:FreeObject(enemy)
-			table.remove(self.world.enemies, enemyIndex)
-		end
-	end
-	
-	-- dtreadgold: Check for the key being picked up
-	if self.key and self.key.dead then
-		-- dtreadgold: Add the points to the player
-		self.player:AddPoints(self.key.points)
-
-		self.key:Destroy()
-		self.key = nil
-		
-		self:RoomFinished()		
 	end
 	
 	if self.shouldMoveRoom then
 		self:MoveToRoom()
 		self.shouldMoveRoom = false
 	end
-end
-
---------------------------------------------------------------------------------
---
---------------------------------------------------------------------------------
-function Game:SpawnKey(position)
-	self.key = Key(self, position)
+	
+	if self.world.roomFinished then
+		self:RoomFinished()
+		self.world.roomFinished = false
+	end
 end
 
 --------------------------------------------------------------------------------
@@ -222,20 +186,19 @@ function Game:PopulateRoom()
 
 		end
 
-		self.player.body:setTransform(unpack(startPositiion))
-		self.player.controller:Reset()
+		self.world.player.body:setTransform(unpack(startPositiion))
+		self.world.player.controller:Reset()
 	end
 	
-		-- dtreadgold: In the first room spawn a key and no enemies
+		-- In the first room spawn a key and no enemies
 	if roomNumber == 1 then
 		local keyPosition = startPositiion
 		keyPosition[2] = keyPosition[2] + 300
-		self:SpawnKey( keyPosition )
+		self.world:SpawnKey( keyPosition )
 	else
 
-		local enemyPoints = roomNumber
-		while enemyPoints > 0 do
-			enemyPoints = self:CreateEnemy(enemyPoints)
+		for enemyIndex, enemyType in ipairs(SpawnList[roomNumber]) do
+			self:CreateEnemy(enemyType)
 		end
 
 	end
@@ -245,10 +208,10 @@ end
 --
 --------------------------------------------------------------------------------
 function Game:CloseDoors()
-	-- dtreadgold: Close all doors
+	-- Close all doors
 	local roomGrid = self.roomGrid.grid
 	for doorName, door in pairs(self.doors) do
-		-- dtreadgold: Change the tiles
+		-- Change the tiles
 		for doorTileIndex, doorTile in ipairs(door.tiles) do
 			roomGrid:setTile( doorTile[1], doorTile[2], 2 )			
 		end
@@ -263,12 +226,12 @@ end
 --
 --------------------------------------------------------------------------------
 function Game:OpenDoors()
-	-- dtreadgold: Open all doors
+	-- Open all doors
 	local roomGrid = self.roomGrid.grid
 	for doorName, door in pairs(self.doors) do
-		-- dtreadgold: Only open the top door
+		-- Only open the top door
 		if doorName == "Top" then
-			-- dtreadgold: Change the tiles
+			-- Change the tiles
 			for doorTileIndex, doorTile in ipairs(door.tiles) do
 				roomGrid:setTile( doorTile[1], doorTile[2], 3 )			
 			end
@@ -282,56 +245,37 @@ end
 --
 --------------------------------------------------------------------------------
 function Game:Restart()
-	self.player:Reset()
+	self.world.player:Reset()
 	
 	self.currentRoom = nil
 	self.rooms = {}
 
 	self.world.rooms = self.rooms
 	
-	-- dtreadgold: Start on the 1st room again
+	-- Start on the 1st room again
 	self:MoveToRoom()
 end
 
 --------------------------------------------------------------------------------
 --
 --------------------------------------------------------------------------------
-function Game:CreateEnemy(pointsRemaining)
+function Game:CreateEnemy(type)
 	local layer = self.layer
 	
-	local potentialEnemies = {}
-	local maxPoints = 0
-	for enemyName, enemyInfo in pairs(Enemy.Types) do
-		if enemyInfo.points <= pointsRemaining then
-			table.insert(potentialEnemies, enemyInfo)
-			maxPoints = math.max(maxPoints, enemyInfo.points)
-		end
-	end
-	
-	-- dtreadgold: Make sure the list is only filled with enemys of max points
-	local enemies = {}
-	for enemyIndex, enemyInfo in ipairs(potentialEnemies) do
-		if enemyInfo.points == maxPoints then
-			table.insert(enemies, enemyInfo)
-		end
-	end
-
 	local tilePosition = 
 	{
 		math.random( 3, RoomDimensionsTiles[1] - 3 ),
 		math.random( RoomDimensionsTiles[2] / 2, RoomDimensionsTiles[2] - 3 )
 	}
 	
-	-- dtreadgold: Round the tile up to the nearest even number
+	-- Round the tile up to the nearest even number
 	tilePosition[1] = tilePosition[1] + (tilePosition[1] % 2)
 	tilePosition[2] = tilePosition[2] + (tilePosition[2] % 2)
 
 	local position = self:TileToWorldPosition(tilePosition)
 	
-	local enemyInfo = enemies[math.random(1, #enemies)]	
+	local enemyInfo = Enemy.Types[type]
 	local enemy = self.world:CreateEnemy(position, enemyInfo)
-	
-	return pointsRemaining - enemyInfo.points
 end
 
 
@@ -356,7 +300,7 @@ function Game:WorldToTilePosition()
 end
 
 --------------------------------------------------------------------------------
--- dtreadgold: Set up background image
+-- Set up background image
 --------------------------------------------------------------------------------
 function Game:CreateBackground()
 	local layer = self.layer
@@ -376,7 +320,7 @@ end
 function Game:CreateRoomGrid()
 	local layer = self.layer
 
-	-- dtreadgold: Setup the room grid
+	-- Setup the room grid
 	local grid = MOAIGrid.new ()
 	grid:initRectGrid( RoomDimensionsTiles[1], RoomDimensionsTiles[2], TileDimensions[1], TileDimensions[2], 0, 0, 1, 1 )
 
@@ -406,7 +350,7 @@ function Game:CreateRoomGrid()
 	
 	self.roomGrid = roomGridProp
 	
-	-- dtreadgold: Create wall physics
+	-- Create wall physics
 	local wallPositions =
 	{
 		{ -(RoomDimensionsWorld[1] /2) + (TileDimensions[1] / 2), 0 },
@@ -429,7 +373,7 @@ function Game:CreateRoomGrid()
 		wallBody:setTransform(wallPosition[1], wallPosition[2], 0)
 	end
 	
-	-- dtreadgold: Create door tiles
+	-- Create door tiles
 	local doorSize = 4
 	
 	self.doors = {}
@@ -440,7 +384,7 @@ function Game:CreateRoomGrid()
 
 --[[
 		if wallIndex == 1 then
-			-- dtreadgold: Left door
+			-- Left door
 			for doorOffsetIndex = 1, doorSize do
 				local tileYPos = (RoomDimensionsTiles[2] / 2) - (doorSize / 2) + doorOffsetIndex
 				local tilePosition = { 1, tileYPos }
@@ -450,7 +394,7 @@ function Game:CreateRoomGrid()
 				door.name = 'Left'
 			end
 		else --]] if wallIndex == 2 then
-			-- dtreadgold: Top door
+			-- Top door
 			for doorOffsetIndex = 1, doorSize do
 				local tileXPos = (RoomDimensionsTiles[1] / 2) - (doorSize / 2) + doorOffsetIndex
 				local tilePosition = { tileXPos, RoomDimensionsTiles[2] }
@@ -460,7 +404,7 @@ function Game:CreateRoomGrid()
 				door.name = 'Top'
 			end
 		else--[[if wallIndex == 3 then
-			-- dtreadgold: Right door
+			-- Right door
 			for doorOffsetIndex = 1, doorSize do
 				local tileYPos = (RoomDimensionsTiles[2] / 2) - (doorSize / 2) + doorOffsetIndex
 				local tilePosition = { RoomDimensionsTiles[1], tileYPos }
@@ -470,7 +414,7 @@ function Game:CreateRoomGrid()
 				door.name = 'Right'
 			end
 		else--]]
-			-- dtreadgold: Bottom door
+			-- Bottom door
 			for doorOffsetIndex = 1, doorSize do
 				local tileXPos = (RoomDimensionsTiles[1] / 2) - (doorSize / 2) + doorOffsetIndex
 				local tilePosition = { tileXPos, 1 }
@@ -493,7 +437,7 @@ end
 function Game:CreateDoor(wallIndex, wallPosition, doorSize)
 	local door = {}
 	
-	-- dtreadgold: Create door physics
+	-- Create door physics
 	function door.onCollide( event, fixtureA, fixtureB, arbiter )
 		local bodyA = fixtureA:getBody()
 		local bodyB = fixtureB:getBody()
@@ -502,7 +446,7 @@ function Game:CreateDoor(wallIndex, wallPosition, doorSize)
 		local objectB = bodyB.owner
 
 		if event == MOAIBox2DArbiter.BEGIN then
-			if objectA == door and objectB == self.player then
+			if objectA == door and objectB == self.world.player then
 				self.shouldMoveRoom = true
 				self.usedDoor = door
 			end

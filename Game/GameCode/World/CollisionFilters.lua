@@ -7,17 +7,17 @@ local Category =
 	Enemy 					= 4,
 	EnemyProjectiles 		= 8,
 	Environment 			= 16,
-	Key				 		= 32,
+	Pickup			 		= 32,
 }
 
 local Mask = 
 {
-	Player 					= Category.Enemy + Category.EnemyProjectiles + Category.Environment + Category.Key,
+	Player 					= Category.Enemy + Category.EnemyProjectiles + Category.Environment + Category.Pickup,
 	FriendlyProjectiles 	= Category.Enemy + Category.EnemyProjectiles + Category.Environment,
 	Enemy 					= Category.Player + Category.Enemy + Category.FriendlyProjectiles + Category.EnemyProjectiles + Category.Environment,	
 	EnemyProjectiles 		= Category.Player + Category.Enemy + Category.FriendlyProjectiles + Category.Environment,
 	Environment				= Category.Player + Category.Enemy + Category.FriendlyProjectiles + Category.EnemyProjectiles + Category.Environment,
-	Key						= Category.Player
+	Pickup					= Category.Player
 }
 
 CollisionFilters.Category = Category

@@ -14,7 +14,8 @@ function Controller:Constructor(owner)
 		moveToY	= nil,
 		mouseX	= 0,
 		mouseY 	= 0,
-		mouseDown = false
+		mouseDown = false,
+		boost = false,
 	}
 	
 	if Utils:IsMobile() then
@@ -30,7 +31,7 @@ end
 function Controller:SetupPCInputs()
 	
 	--[[
-	-- dtreadgold: Use the keyboard for movement controls
+	-- Use the keyboard for movement controls
 	function onKeyboardEvent( key, down )
 		local keyChar = string.char(key)
 		
@@ -73,6 +74,11 @@ function Controller:SetupPCInputs()
 	end
 	MOAIInputMgr.device.mouseLeft:setCallback( onMouseLeftEvent )
 	
+	function onMouseRightEvent( down )
+		self.inputs.boost = true
+	end
+	MOAIInputMgr.device.mouseRight:setCallback( onMouseRightEvent )
+	
 	function onPointerEvent(x, y)
 		self.inputs.mouseX = x
 		self.inputs.mouseY = y
@@ -84,10 +90,14 @@ end
 -- 
 --------------------------------------------------------------------------------
 function Controller:SetupMobileInputs()
-	-- dtreadgold: Get the fire and target inputs from the touch sensor
+	-- Get the fire and target inputs from the touch sensor
 	function onTapEvent( eventType, idx, x, y, tapCount  )
 		local layer = self.owner.world.layer
 		local worldPosition = { layer:wndToWorld(x, y) }
+		
+		if tapCount >= 2 then
+			self.inputs.boost = true
+		end
 
 		self.inputs.moveToX = worldPosition[1]
 		self.inputs.moveToY = worldPosition[2]

@@ -10,7 +10,7 @@ GRAPHICS_DIR = CONTENT_DIR .. "Graphics/"
 
 local game = Game()
 
--- dtreadgold: Run the game
+-- Run the game
 function main ()
 	while true do
 		game:Update()

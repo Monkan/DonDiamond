@@ -8,7 +8,7 @@ local Projectile = Class()
 function Projectile:Constructor(world)
 	self.world = world
 
-	-- dtreadgold: Set up prop and physics
+	-- Set up prop and physics
 	local quad = MOAIGfxQuad2D.new ()
 	quad:setTexture ( GRAPHICS_DIR .. "projectile.png" )
 	local size = { 10, 14 }
@@ -43,7 +43,7 @@ function Projectile:Activate(owner, direction, damage)
 	local world = self.world
 	local layer = world.layer
 
-	-- dtreadgold: Set up prop and physics
+	-- Set up prop and physics
 	layer:insertProp ( self.prop )
 	self:CreatePhysics(world.physicsWorld)
 

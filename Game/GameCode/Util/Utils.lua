@@ -17,4 +17,16 @@ function Utils:IsDesktop()
     return not self:isMobile()
 end
 
+--------------------------------------------------------------------------------
+--
+--------------------------------------------------------------------------------
+function Utils:Timer(span, eventType, callback)
+	local timer = MOAITimer.new()
+	timer:setSpan(span)
+	timer:setListener(eventType, callback)
+
+	return timer
+end
+
+
 return Utils
